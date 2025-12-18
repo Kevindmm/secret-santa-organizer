@@ -40,17 +40,41 @@ public class EmailService {
             message.setSubject("🎁 ¡Tu amigo invisible ha sido asignado!");
 
             String text = """
+            ╔══════════════════════════════════════╗
+                         🎄 SECRET SANTA 🎄
+            ╚══════════════════════════════════════╝
+            
             Hola %s,
             
-            ¡Tu amigo invisible ha sido asignado!
+            ¡Excelentes noticias! La asignación del amigo invisible 
+            ya está lista y estamos emocionados de compartirla contigo.
             
-            Tienes que hacerle un regalo a: %s
-            Lista de deseos: %s
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            🎯 PERSONA ASIGNADA:
+               %s
             
-            Precio máximo: %s€
-            Fecha del intercambio: %s
+            📝 LISTA DE DESEOS:
+               %s
             
-            ¡Guarda el secreto! 🎅
+            💰 PRESUPUESTO MÁXIMO:
+               %s €
+            
+            📅 FECHA DEL INTERCAMBIO:
+               %s
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            
+            ✨ Consejos:
+            • Sé creativo con tu regalo
+            • Lo importante es el detalle
+            • ¡Mantén el secreto! 🤫
+            
+            Que la magia de la Navidad te acompañe en esta 
+            bonita tradición.
+            
+            ──────────────────────────────────────
+            Con cariño navideño,
+            El equipo de Secret Santa Organizer
+            🎅🎁🎄
             """.formatted(
                     giver.getName(),
                     receiver.getName(),

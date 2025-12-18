@@ -10,17 +10,17 @@ import java.util.Properties;
 @Configuration
 public class EmailConfig {
 
-    // 1. Inject values from application.properties
+    // Inject values from application.properties
     @Value("${spring.mail.host}")
     private String host;
 
     @Value("${spring.mail.port}")
     private int port;
 
-    @Value("${spring.mail.username}") // Your verified email (e.g., personal Gmail)
+    @Value("${spring.mail.username}")
     private String username;
 
-    @Value("${spring.mail.password}") // Your App Password or SMTP key
+    @Value("${spring.mail.password}")
     private String password;
 
     @Value("${spring.mail.properties.mail.smtp.auth}")
@@ -29,10 +29,10 @@ public class EmailConfig {
     @Value("${spring.mail.properties.mail.smtp.starttls.enable}")
     private boolean starttls;
 
-    @Value("${spring.mail.from.address:no-reply@kdmm.com}") // Default value
+    @Value("${app.email.sender}")
     private String fromAddress;
 
-    // 2. Primary Bean: Configured JavaMailSender
+    // Primary Bean: Configured JavaMailSender
     @Bean
     public JavaMailSender javaMailSender() {
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
@@ -45,12 +45,12 @@ public class EmailConfig {
         props.put("mail.smtp.auth", String.valueOf(auth));
         props.put("mail.smtp.starttls.enable", String.valueOf(starttls));
         // Add other properties if needed
-        props.put("mail.debug", "true"); // Enable only for development
+        props.put("mail.debug", "false"); // Enable only for development
 
         return mailSender;
     }
 
-    // 3. Bean for the "From" address (optional but clean)
+    // Bean for the "From" address (optional but clean)
     @Bean
     public String emailFromAddress() {
         return fromAddress;
