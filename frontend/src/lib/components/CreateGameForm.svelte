@@ -29,26 +29,17 @@
     loading = true;
     error = null;
 
-    // ========== AÑADE ESTAS 3 LÍNEAS ==========
-      console.log('🚀 Llamando a API...');
-      console.log('Datos:', { name: gameName, maxPrice, exchangeDate });
-      console.log('URL: http://localhost:8080/api/games');
-      // ==========================================
-
     try {
-      const response = await fetch('http://localhost:8080/api/games', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: gameName,
-          maxPrice: maxPrice,
-          exchangeDate: exchangeDate
-        })
-      });
+  const response = await fetch(`${import.meta.env.PUBLIC_API_URL}/api/games`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: gameName,
+      maxPrice: maxPrice,
+      exchangeDate: exchangeDate
+    })
+  });
 
-      // ========== AÑADE ESTA LÍNEA ==========
-          console.log('📥 Status recibido:', response.status);
-          // ======================================
 
       if (!response.ok) {
         const err = await response.text();
@@ -56,10 +47,6 @@
       }
 
       successData = await response.json();
-
-       // ========== AÑADE ESTA LÍNEA ==========
-          console.log('✅ Éxito:', successData);
-       // ======================================
 
     } catch (err) {
       error = err.message || 'Error al crear el juego. Verifica que el backend esté ejecutándose.';
@@ -69,13 +56,46 @@
   }
 
   // Copy join link
-  function copyJoinLink() {
-    if (!successData?.gameId) return;DOND
-    const joinUrl = `${window.location.origin}/?game=${successData.gameId}`;
-    navigator.clipboard.writeText(joinUrl)
-      .then(() => alert('¡Enlace copiado!'))
-      .catch(() => alert('Error al copiar'));
-  }
+function copyJoinLink() {
+  if (!successData?.gameId) return;
+  
+  const gameCode = successData.gameId;
+  const button = event?.currentTarget; 
+  
+  const originalText = button ? button.textContent : '📋 Copiar';
+  
+  navigator.clipboard.writeText(gameCode)
+    .then(() => {
+      if (button) {
+        button.textContent = '✅ Copiado!';
+        button.style.background = '#10b981';
+        button.style.color = 'white';
+        
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.style.background = '';
+          button.style.color = '';
+        }, 5000);
+      } else {
+        alert('✅ Código copiado: ' + gameCode);
+      }
+    })
+    .catch(() => {
+      // FALLBACK para HTTP/localhost
+      const textArea = document.createElement('textarea');
+      textArea.value = gameCode;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      // Feedback visual incluso en fallback
+      if (button) {
+        button.textContent = '✅ (Copiado manual)';
+        setTimeout(() => button.textContent = originalText, 2000);
+      }
+    });
+}
 
   // Reset for new game
   function createAnother() {
@@ -116,7 +136,7 @@
         <p class="share-title">Comparte este enlace con los participantes:</p>
         <div class="link-box">
           <code>{window.location.origin}/?game={successData.gameId}</code>
-          <button on:click={copyJoinLink} class="copy-btn" title="Copiar enlace">
+          <button on:click|preventDefault={copyJoinLink} class="copy-btn" title="Copiar código">
             📋 Copiar
           </button>
         </div>

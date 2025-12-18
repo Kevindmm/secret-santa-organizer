@@ -20,12 +20,12 @@
     loadingParticipants = true;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/games/${gameCode.toUpperCase()}/participants`);
+    const response = await fetch(`${import.meta.env.PUBLIC_API_URL}/api/games/${gameCode.toUpperCase()}/participants`);
 
-      if (!response.ok) {
-        participants = [];
-        return;
-      }
+    if (!response.ok) {
+      participants = [];
+      return;
+    }
 
       const data = await response.json();
       participants = data.participants || data || [];
@@ -68,10 +68,10 @@
     adminError = null;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/games/${adminGameCode.toUpperCase()}/assign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const response = await fetch(`${import.meta.env.PUBLIC_API_URL}/api/games/${adminGameCode.toUpperCase()}/assign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
 
       if (!response.ok) {
         const errText = await response.text();

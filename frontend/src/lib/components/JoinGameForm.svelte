@@ -32,15 +32,15 @@
     error = null;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/games/${formattedGameCode}/participants`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: participantName,
-          email: participantEmail,
-          wishList: participantWishlist
-        })
-      });
+  const response = await fetch(`${import.meta.env.PUBLIC_API_URL}/api/games/${formattedGameCode}/participants`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: participantName,
+      email: participantEmail,
+      wishList: participantWishlist
+    })
+  });
 
       if (!response.ok) {
         const errText = await response.text();
