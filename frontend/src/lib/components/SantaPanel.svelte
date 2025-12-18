@@ -4,6 +4,9 @@
 
   const dispatch = createEventDispatcher();
 
+  // TEST:
+  const API_URL = 'https://secret-santa-organizerv3.onrender.com';
+
   // Admin panel state
   let showAdminPanel = false;
   let adminGameCode = '';
@@ -20,7 +23,7 @@
     loadingParticipants = true;
 
     try {
-    const response = await fetch(`${import.meta.env.PUBLIC_API_URL}/api/games/${gameCode.toUpperCase()}/participants`);
+    const response = await fetch(`${API_URL}/api/games/${gameCode.toUpperCase()}/participants`);
 
     if (!response.ok) {
       participants = [];
@@ -67,8 +70,10 @@
     adminLoading = true;
     adminError = null;
 
+   
+
     try {
-      const response = await fetch(`${import.meta.env.PUBLIC_API_URL}/api/games/${adminGameCode.toUpperCase()}/assign`, {
+      const response = await fetch(`${API_URL}/api/games/${adminGameCode.toUpperCase()}/assign`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });

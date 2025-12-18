@@ -30,9 +30,13 @@
 
     loading = true;
     error = null;
+    
+
+    // TEST:
+    const API_URL = 'https://secret-santa-organizerv3.onrender.com';
 
     try {
-  const response = await fetch(`${import.meta.env.PUBLIC_API_URL}/api/games/${formattedGameCode}/participants`, {
+    const response = await fetch(`${API_URL}/api/games/${formattedGameCode}/participants`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

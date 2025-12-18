@@ -10,8 +10,12 @@ public class CorsWebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:5173", "http://localhost:5174") // Vite/Svelte ports
-                .allowedMethods("GET", "POST", "OPTIONS")
+                .allowedOriginPatterns(
+                        "https://secret-santa-organizer*.vercel.app",
+                        "https://*.vercel.app",
+                        "http://localhost:*"
+                )
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true)
                 .maxAge(3600);

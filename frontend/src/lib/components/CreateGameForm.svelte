@@ -19,8 +19,13 @@
 
   onMount(initDate);
 
+
   // API call
   async function createGame() {
+    
+    // TEST:
+const API_URL = 'https://secret-santa-organizerv3.onrender.com';
+
     if (!gameName.trim()) {
       error = 'Por favor ingresa un nombre para el juego';
       return;
@@ -29,9 +34,10 @@
     loading = true;
     error = null;
 
+
     try {
-  const response = await fetch(`${import.meta.env.PUBLIC_API_URL}/api/games`, {
-    method: 'POST',
+  const response = await fetch(`${API_URL}/api/games`, {
+  method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: gameName,
