@@ -16,11 +16,12 @@ public class Participant {
     @JoinColumn(name = "game_id")
     private Game game;
 
-    private String assignedToEmail;
+    private String assignedToEmail;  // Solo este campo
     private boolean emailSent = false;
 
-    public Participant() { /* TODO document why this constructor is empty */ }
+    public Participant() {}
 
+    // Getters y Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -37,8 +38,15 @@ public class Participant {
     public void setGame(Game game) { this.game = game; }
 
     public String getAssignedToEmail() { return assignedToEmail; }
-    public void setAssignedToEmail(String assignedToEmail) { this.assignedToEmail = assignedToEmail; }
+    public void setAssignedToEmail(String assignedToEmail) {
+        this.assignedToEmail = assignedToEmail;
+    }
 
     public boolean isEmailSent() { return emailSent; }
     public void setEmailSent(boolean emailSent) { this.emailSent = emailSent; }
+
+    // helper
+    public boolean isAssigned() {
+        return assignedToEmail != null && !assignedToEmail.trim().isEmpty();
+    }
 }
