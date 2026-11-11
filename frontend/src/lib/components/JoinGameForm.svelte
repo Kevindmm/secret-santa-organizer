@@ -1,11 +1,24 @@
 <!-- frontend/src/lib/components/JoinGameForm.svelte -->
 <script>
+  import {
+    AlertCircle,
+    ArrowRight,
+    Check,
+    Gift,
+    KeyRound,
+    Mail,
+    Sparkles,
+    User,
+    UserPlus
+  } from 'lucide-svelte';
+
   // State
   let gameCode = '';
   let participantName = '';
   let participantEmail = '';
   let participantWishlist = '';
   let loading = false;
+  /** @type {string | null} */
   let error = null;
   let success = false;
 
@@ -30,21 +43,19 @@
 
     loading = true;
     error = null;
-    
 
-    // TEST:
     const API_URL = 'https://secret-santa-organizerv3.onrender.com';
 
     try {
-    const response = await fetch(`${API_URL}/api/games/${formattedGameCode}/participants`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: participantName,
-      email: participantEmail,
-      wishList: participantWishlist
-    })
-  });
+      const response = await fetch(`${API_URL}/api/games/${formattedGameCode}/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: participantName,
+          email: participantEmail,
+          wishList: participantWishlist
+        })
+      });
 
       if (!response.ok) {
         const errText = await response.text();
@@ -52,11 +63,11 @@
       }
 
       success = true;
-
     } catch (err) {
-      error = err.message.includes('404')
+      const message = err instanceof Error ? err.message : String(err);
+      error = message.includes('404')
         ? 'Juego no encontrado. Verifica el código.'
-        : err.message.includes('duplicate')
+        : message.includes('duplicate')
         ? 'Este email ya está registrado en el juego.'
         : 'Error al unirse al juego. Verifica el código.';
     } finally {
@@ -65,6 +76,7 @@
   }
 
   // Simple email validation
+  /** @param {string} email */
   function isValidEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
@@ -79,310 +91,455 @@
   }
 </script>
 
-<div class="join-game-form">
-  <!-- SUCCESS STATE -->
+<div class="join-game-form glass-card">
   {#if success}
-    <div class="success-card">
-      <div class="success-icon">✅</div>
-      <h2>¡Te has unido al juego!</h2>
+    <div class="success-card pop-in" role="status">
+      <div class="success-hero">
+        <span class="success-mark" aria-hidden="true">
+          <Check size={30} strokeWidth={2.2} />
+        </span>
+        <p class="eyebrow">Estás dentro</p>
+        <h2>¡Bienvenido, {participantName}!</h2>
+        <p class="success-lede">
+          Tu plaza está confirmada. Solo queda esperar a que el organizador haga
+          el sorteo.
+        </p>
 
-      <div class="success-details">
-        <p><strong>Nombre:</strong> {participantName}</p>
-        <p><strong>Juego:</strong> Código {formattedGameCode}</p>
+        <div class="pill-row">
+          <span class="chip chip-gold">
+            <KeyRound size={14} aria-hidden="true" />
+            {formattedGameCode}
+          </span>
+          <span class="chip name-chip">
+            <User size={14} aria-hidden="true" />
+            <span class="truncate">{participantName}</span>
+          </span>
+        </div>
       </div>
 
-      <div class="instructions">
-        <h3>🎁 ¿Qué sigue?</h3>
-        <ul>
-          <li>Espera a que el organizador asigne los amigos secretos</li>
-          <li>Recibirás un email con la persona que te ha tocado</li>
-          <li>¡Mantén el secreto hasta el día del intercambio!</li>
-        </ul>
+      <div class="info-card">
+        <h3>
+          <Mail size={17} aria-hidden="true" />
+          ¿Qué pasa ahora?
+        </h3>
+        <ol>
+          <li>
+            <span aria-hidden="true">1</span>
+            Espera a que el organizador haga el sorteo.
+          </li>
+          <li>
+            <span aria-hidden="true">2</span>
+            Recibirás un email con tu amigo secreto.
+          </li>
+          <li>
+            <span aria-hidden="true">3</span>
+            Mantén el secreto hasta el día del intercambio.
+          </li>
+        </ol>
       </div>
 
-      <div class="action-buttons">
-        <button on:click={joinAnother} class="secondary-btn">
-          🔗 Unirse a Otro Juego
-        </button>
+      <div class="next-step">
+        <Sparkles size={18} aria-hidden="true" />
+        <p>
+          <strong>Consejo</strong>
+          Añade ideas a tu lista de deseos si aún no lo has hecho: ayudan mucho a
+          quien te toque.
+        </p>
+      </div>
+
+      <button type="button" class="btn btn-secondary btn-block secondary-btn" on:click={joinAnother}>
+        <UserPlus size={17} aria-hidden="true" />
+        Unirme a otro intercambio
+      </button>
+    </div>
+  {:else}
+    <div class="form-header">
+      <span class="form-icon" aria-hidden="true">
+        <Gift size={21} strokeWidth={1.8} />
+      </span>
+      <div>
+        <h2>Unirme a un intercambio</h2>
+        <p>Necesitas el código que te ha pasado el organizador.</p>
       </div>
     </div>
 
-  <!-- JOIN FORM -->
-  {:else}
-    <h2>🎄 Unirse a un Juego Existente</h2>
-
     {#if error}
-      <div class="error-message">
-        ⚠️ {error}
+      <div class="alert alert-error form-error" role="alert">
+        <AlertCircle size={17} aria-hidden="true" />
+        <span>{error}</span>
       </div>
     {/if}
 
-    <form on:submit|preventDefault={joinGame}>
-      <!-- Game Code -->
-      <div class="form-group">
-        <label for="gameCode">
-          <span class="icon">🔑</span> Código del Juego
-        </label>
-        <input
-          id="gameCode"
-          type="text"
-          bind:value={gameCode}
-          placeholder="Ej: X8B3K9"
-          required
-          maxlength="10"
-          disabled={loading}
-        />
-        <div class="hint">Pide el código al organizador del juego</div>
+    <form class="form-body" on:submit|preventDefault={joinGame}>
+      <div class="field">
+        <label class="field-label" for="gameCode">Código del juego</label>
+        <div class="input-wrap">
+          <KeyRound class="input-icon" size={18} aria-hidden="true" />
+          <input
+            id="gameCode"
+            class="input code-input"
+            type="text"
+            bind:value={gameCode}
+            placeholder="Ej. X8B3K9"
+            required
+            maxlength="10"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            disabled={loading}
+          />
+        </div>
+        {#if gameCode.trim()}
+          <p class="field-hint code-hint">
+            Te unirás al código <strong>{formattedGameCode}</strong>
+          </p>
+        {:else}
+          <p class="field-hint">Pídeselo al organizador del intercambio.</p>
+        {/if}
       </div>
 
-      <!-- Participant Name -->
-      <div class="form-group">
-        <label for="participantName">
-          <span class="icon">👤</span> Tu Nombre
-        </label>
-        <input
-          id="participantName"
-          type="text"
-          bind:value={participantName}
-          placeholder="Tu nombre completo"
-          required
-          maxlength="50"
-          disabled={loading}
-        />
+      <div class="field">
+        <label class="field-label" for="participantName">Tu nombre</label>
+        <div class="input-wrap">
+          <User class="input-icon" size={18} aria-hidden="true" />
+          <input
+            id="participantName"
+            class="input"
+            type="text"
+            bind:value={participantName}
+            placeholder="Tu nombre completo"
+            required
+            maxlength="50"
+            autocomplete="name"
+            disabled={loading}
+          />
+        </div>
       </div>
 
-      <!-- Participant Email -->
-      <div class="form-group">
-        <label for="participantEmail">
-          <span class="icon">📧</span> Tu Email
-        </label>
-        <input
-          id="participantEmail"
-          type="email"
-          bind:value={participantEmail}
-          placeholder="tucorreo@ejemplo.com"
-          required
-          disabled={loading}
-        />
-        <div class="hint">Recibirás aquí la asignación de tu amigo secreto</div>
+      <div class="field">
+        <label class="field-label" for="participantEmail">Tu email</label>
+        <div class="input-wrap">
+          <Mail class="input-icon" size={18} aria-hidden="true" />
+          <input
+            id="participantEmail"
+            class="input"
+            type="email"
+            bind:value={participantEmail}
+            placeholder="tucorreo@ejemplo.com"
+            required
+            autocomplete="email"
+            inputmode="email"
+            disabled={loading}
+          />
+        </div>
+        <p class="field-hint">Aquí recibirás la asignación de tu amigo secreto.</p>
       </div>
 
-      <!-- Wishlist -->
-      <div class="form-group">
-        <label for="participantWishlist">
-          <span class="icon">🎁</span> Tu Lista de Deseos (Opcional)
+      <div class="field">
+        <label class="field-label" for="participantWishlist">
+          <span>Lista de deseos</span>
+          <span class="optional-tag">Opcional</span>
         </label>
         <textarea
           id="participantWishlist"
+          class="input"
           bind:value={participantWishlist}
-          placeholder="¿Qué te gustaría recibir? Ej: libros, chocolate, una bufanda..."
-          rows="3"
+          placeholder="¿Qué te gustaría recibir? Ej. libros, chocolate, una bufanda…"
+          rows="4"
           maxlength="200"
           disabled={loading}
         ></textarea>
-        <div class="hint">Ayuda a tu amigo secreto con algunas ideas</div>
+        <div class="field-foot">
+          <p class="field-hint">Da alguna pista, sin pasarte de presupuesto.</p>
+          <span class="char-count">{participantWishlist.length}/200</span>
+        </div>
       </div>
 
-      <!-- Submit Button -->
-      <button type="submit" disabled={loading || !gameCode.trim() || !participantName.trim() || !participantEmail.trim()}
-              class="submit-btn">
+      <button
+        type="submit"
+        class="btn btn-primary btn-block submit-btn"
+        disabled={loading ||
+          !gameCode.trim() ||
+          !participantName.trim() ||
+          !participantEmail.trim()}
+      >
         {#if loading}
-          <span class="spinner"></span> Uniéndose...
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Uniéndome…</span>
         {:else}
-          🎅 Unirse al Juego
+          <span>Unirme al intercambio</span>
+          <ArrowRight size={18} aria-hidden="true" />
         {/if}
       </button>
+
+      <p class="form-note">Tu email solo se usa para enviarte la asignación.</p>
     </form>
   {/if}
 </div>
 
 <style>
   .join-game-form {
-    background: rgba(255, 255, 255, 0.98);
-    border-radius: 16px;
-    padding: 2rem;
-    color: #1a472a;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-    border: 2px solid #2d5c2d;
-    max-width: 500px;
-    margin: 0 auto;
+    padding: 1.15rem;
   }
 
-  h2 {
-    color: #2d5c2d;
-    text-align: center;
-    margin-bottom: 1.5rem;
-    font-size: 1.6rem;
-  }
-
-  /* Form Groups */
-  .form-group {
-    margin-bottom: 1.5rem;
-  }
-
-  label {
+  .form-header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    gap: 0.8rem;
+    margin-bottom: 1.4rem;
+  }
+
+  .form-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    color: var(--gold);
+    background: var(--gold-soft);
+    border: 1px solid rgba(233, 203, 123, 0.22);
+    border-radius: 14px;
+  }
+
+  .form-header h2 {
+    margin: 0 0 0.15rem;
+    font-size: 1.24rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+
+  .form-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.4;
+  }
+
+  .form-error {
+    margin-bottom: 1.1rem;
+  }
+
+  .form-body {
+    display: grid;
+    gap: 1.2rem;
+  }
+
+  .code-input {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
     font-weight: 600;
-    color: #2d3748;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 
-  input[type="text"],
-  input[type="email"],
-  textarea {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #cbd5e0;
-    border-radius: 8px;
-    font-size: 1rem;
-    background: white;
-    box-sizing: border-box;
-    font-family: inherit;
+  .code-hint strong {
+    color: var(--gold);
+    letter-spacing: 0.08em;
   }
 
-  input[type="text"]:focus,
-  input[type="email"]:focus,
-  textarea:focus {
-    outline: none;
-    border-color: #2d5c2d;
-    box-shadow: 0 0 0 2px rgba(45, 92, 45, 0.1);
-  }
-
-  textarea {
-    resize: vertical;
-    min-height: 80px;
-  }
-
-  /* Hint text */
-  .hint {
-    font-size: 0.85rem;
-    color: #718096;
-    margin-top: 0.3rem;
-    font-style: italic;
-  }
-
-  /* Submit Button */
-  .submit-btn {
-    width: 100%;
-    padding: 1rem;
-    background: #2d5c2d;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 1.1rem;
-    font-weight: bold;
-    cursor: pointer;
-    margin-top: 0.5rem;
-    display: flex;
+  .optional-tag {
+    display: inline-flex;
     align-items: center;
+    min-height: 26px;
+    padding: 0.12rem 0.55rem;
+    color: var(--text-soft);
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .field-foot {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .char-count {
+    flex: none;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .submit-btn {
+    min-height: 56px;
+    margin-top: 0.2rem;
+    font-size: 1.02rem;
+  }
+
+  .form-note {
+    margin: -0.35rem 0 0;
+    color: var(--muted);
+    font-size: 0.76rem;
+    text-align: center;
+  }
+
+  /* Estado de éxito ---------------------------------------- */
+
+  .success-card {
+    padding: 0.35rem 0;
+  }
+
+  .success-hero {
+    text-align: center;
+  }
+
+  .success-mark {
+    display: grid;
+    place-items: center;
+    width: 62px;
+    height: 62px;
+    margin: 0 auto 0.9rem;
+    color: #bdf6da;
+    background:
+      radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.22), transparent 55%),
+      linear-gradient(145deg, rgba(102, 199, 154, 0.3), rgba(45, 122, 85, 0.18));
+    border: 1px solid rgba(102, 199, 154, 0.35);
+    border-radius: 22px;
+    box-shadow: 0 16px 36px -18px rgba(102, 199, 154, 0.65);
+  }
+
+  .success-hero h2 {
+    margin: 0.35rem 0 0.5rem;
+    font-size: clamp(1.35rem, 5.5vw, 1.7rem);
+    font-weight: 750;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  .success-lede {
+    max-width: 40ch;
+    margin: 0 auto;
+    color: var(--text-soft);
+    font-size: 0.86rem;
+    line-height: 1.5;
+  }
+
+  .pill-row {
+    display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 0.5rem;
+    margin-top: 1rem;
   }
 
-  .submit-btn:hover:not(:disabled) {
-    background: #1e3e1e;
+  .pill-row .chip :global(svg) {
+    color: var(--gold);
   }
 
-  .submit-btn:disabled {
-    background: #cbd5e0;
-    cursor: not-allowed;
+  .name-chip {
+    max-width: 100%;
   }
 
-  .spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-radius: 50%;
-    border-top-color: white;
-    animation: spin 1s linear infinite;
+  .truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  /* Error Message */
-  .error-message {
-    background: #fed7d7;
-    border: 1px solid #fc8181;
-    color: #9b2c2c;
-    padding: 0.75rem;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-    text-align: center;
-  }
-
-  /* Success Card */
-  .success-card {
-    text-align: center;
-  }
-
-  .success-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-  }
-
-  .success-details {
-    background: #f0fff4;
-    border: 1px solid #9ae6b4;
-    border-radius: 12px;
-    padding: 1.25rem;
-    margin: 1.5rem 0;
+  .info-card {
+    padding: 1rem;
+    margin: 1.25rem 0;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    border-radius: var(--radius-lg);
     text-align: left;
   }
 
-  .success-details p {
-    margin: 0.5rem 0;
+  .info-card h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0 0 0.8rem;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 650;
   }
 
-  .instructions {
-    background: #f7fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 1.25rem;
-    margin: 1.5rem 0;
-    text-align: left;
+  .info-card h3 :global(svg) {
+    color: var(--gold);
   }
 
-  .instructions h3 {
-    color: #2d5c2d;
-    margin-top: 0;
-    margin-bottom: 0.75rem;
-  }
-
-  .instructions ul {
+  .info-card ol {
+    display: grid;
+    gap: 0.65rem;
+    padding: 0;
     margin: 0;
-    padding-left: 1.25rem;
-    color: #4a5568;
+    list-style: none;
   }
 
-  .instructions li {
-    margin-bottom: 0.5rem;
+  .info-card li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    color: var(--text-soft);
+    font-size: 0.81rem;
+    line-height: 1.45;
   }
 
-  .instructions li:last-child {
-    margin-bottom: 0;
+  .info-card li > span {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    color: var(--gold);
+    background: var(--gold-soft);
+    border-radius: 50%;
+    font-size: 0.68rem;
+    font-weight: 700;
   }
 
-  /* Action Buttons */
-  .action-buttons {
-    margin-top: 1.5rem;
+  .next-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.85rem 0.9rem;
+    margin-bottom: 1.1rem;
+    color: var(--text-soft);
+    background: rgba(233, 203, 123, 0.075);
+    border: 1px solid rgba(233, 203, 123, 0.18);
+    border-radius: 16px;
+    text-align: left;
+  }
+
+  .next-step > :global(svg) {
+    flex: none;
+    margin-top: 0.15rem;
+    color: var(--gold);
+  }
+
+  .next-step p {
+    margin: 0;
+    font-size: 0.79rem;
+    line-height: 1.5;
+  }
+
+  .next-step strong {
+    display: block;
+    margin-bottom: 0.1rem;
+    color: var(--gold);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
   }
 
   .secondary-btn {
-    width: 100%;
-    padding: 0.75rem;
-    background: #e2e8f0;
-    color: #4a5568;
-    border: 1px solid #cbd5e0;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
+    min-height: 50px;
   }
 
-  .secondary-btn:hover {
-    background: #cbd5e0;
+  @media (min-width: 640px) {
+    .join-game-form {
+      padding: 1.6rem;
+    }
+
+    .form-body {
+      gap: 1.35rem;
+    }
   }
 </style>

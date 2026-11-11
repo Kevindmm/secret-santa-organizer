@@ -1,42 +1,82 @@
 <!-- frontend/src/lib/components/SantaPanel.svelte -->
 <script>
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onDestroy } from 'svelte';
+  import {
+    AlertCircle,
+    Check,
+    Clock,
+    Info,
+    KeyRound,
+    Mail,
+    Shuffle,
+    Sparkles,
+    UserX,
+    Users,
+    X
+  } from 'lucide-svelte';
 
   const dispatch = createEventDispatcher();
 
-  // TEST:
   const API_URL = 'https://secret-santa-organizerv3.onrender.com';
+
+  /**
+   * @typedef {{ id?: number, name?: string, email?: string, assigned?: boolean }} Participant
+   */
 
   // Admin panel state
   let showAdminPanel = false;
   let adminGameCode = '';
   let adminLoading = false;
+  /** @type {string | null} */
   let adminError = null;
   let adminSuccess = false;
+  /** @type {Participant[]} */
   let participants = [];
   let loadingParticipants = false;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let closeTimer;
+  /** @type {AbortController | undefined} */
+  let participantsController;
+  let participantsRequestId = 0;
 
   // Fetch participants for a game
+  /** @param {string} gameCode */
   async function fetchParticipants(gameCode) {
     if (!gameCode.trim()) return;
+
+    const requestId = ++participantsRequestId;
+    participantsController?.abort();
+    const controller = new AbortController();
+    participantsController = controller;
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     loadingParticipants = true;
 
     try {
-    const response = await fetch(`${API_URL}/api/games/${gameCode.toUpperCase()}/participants`);
+      const response = await fetch(
+        `${API_URL}/api/games/${gameCode.toUpperCase()}/participants`,
+        { signal: controller.signal }
+      );
 
-    if (!response.ok) {
-      participants = [];
-      return;
-    }
+      if (requestId !== participantsRequestId) return;
+
+      if (!response.ok) {
+        participants = [];
+        return;
+      }
 
       const data = await response.json();
+      if (requestId !== participantsRequestId) return;
       participants = data.participants || data || [];
     } catch (error) {
-      console.error('Error fetching participants:', error);
-      participants = [];
+      if (requestId === participantsRequestId) {
+        participants = [];
+      }
     } finally {
-      loadingParticipants = false;
+      clearTimeout(timeoutId);
+      if (requestId === participantsRequestId) {
+        loadingParticipants = false;
+      }
     }
   }
 
@@ -46,6 +86,7 @@
   }
 
   // Format email for display (partially masked)
+  /** @param {string | undefined} email */
   function formatEmail(email) {
     if (!email) return '';
 
@@ -53,11 +94,17 @@
     if (!username || !domain) return email;
 
     // Keep first 3 characters, mask the rest before @
-    const maskedUsername = username.length > 3
-      ? username.substring(0, 3) + '*'.repeat(Math.min(username.length - 3, 4))
-      : username;
+    const maskedUsername =
+      username.length > 3
+        ? username.substring(0, 3) + '*'.repeat(Math.min(username.length - 3, 4))
+        : username;
 
     return `${maskedUsername}@${domain}`;
+  }
+
+  /** @param {string | undefined} name */
+  function initial(name) {
+    return (name || '?').trim().charAt(0).toUpperCase() || '?';
   }
 
   // Assign secret santas
@@ -70,13 +117,13 @@
     adminLoading = true;
     adminError = null;
 
-   
+    const gameCode = adminGameCode.toUpperCase();
 
     try {
-      const response = await fetch(`${API_URL}/api/games/${adminGameCode.toUpperCase()}/assign`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
+      const response = await fetch(`${API_URL}/api/games/${gameCode}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
 
       if (!response.ok) {
         const errText = await response.text();
@@ -84,18 +131,19 @@
       }
 
       adminSuccess = true;
-      setTimeout(() => {
+
+      closeTimer = setTimeout(() => {
+        dispatch('assigned', { gameCode });
         showAdminPanel = false;
         adminSuccess = false;
         adminGameCode = '';
         participants = [];
-        dispatch('assigned', { gameCode: adminGameCode.toUpperCase() });
       }, 10000);
-
     } catch (err) {
-      adminError = err.message.includes('404')
+      const message = err instanceof Error ? err.message : String(err);
+      adminError = message.includes('404')
         ? 'Juego no encontrado'
-        : err.message.includes('menos')
+        : message.includes('menos')
         ? 'Se necesitan al menos 3 participantes'
         : 'Error al asignar amigos secretos';
     } finally {
@@ -105,155 +153,268 @@
 
   // Close panel
   function closePanel() {
+    participantsController?.abort();
+    clearTimeout(closeTimer);
     showAdminPanel = false;
     adminError = null;
     adminSuccess = false;
     participants = [];
     adminGameCode = '';
+    loadingParticipants = false;
   }
+
+  /** @param {KeyboardEvent} event */
+  function handleKeydown(event) {
+    if (event.key === 'Escape' && showAdminPanel) {
+      closePanel();
+    }
+  }
+
+  /**
+   * El header tiene backdrop-filter, que crea un containing block para
+   * position: fixed. Movemos el modal al body para que se ancle al viewport.
+   * @param {HTMLElement} node
+   */
+  function portal(node) {
+    document.body.appendChild(node);
+
+    return {
+      destroy() {
+        node.remove();
+      }
+    };
+  }
+
+  // Evita que el fondo haga scroll con el sheet abierto.
+  $: if (typeof document !== 'undefined') {
+    document.body.style.overflow = showAdminPanel ? 'hidden' : '';
+  }
+
+  onDestroy(() => {
+    participantsController?.abort();
+    clearTimeout(closeTimer);
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = '';
+    }
+  });
 </script>
 
-<!-- Admin button -->
+<svelte:window on:keydown={handleKeydown} />
+
+<!-- Admin trigger -->
 <button
-  class="admin-button"
-  on:click={() => showAdminPanel = true}
+  class="admin-trigger"
+  type="button"
+  on:click={() => (showAdminPanel = true)}
   title="Panel de Santa - Asignar amigos secretos"
+  aria-haspopup="dialog"
+  aria-label="Abrir Panel Santa"
 >
-  🎅 Panel Santa
+  <Sparkles size={17} strokeWidth={1.9} aria-hidden="true" />
+  <span class="trigger-label">Panel Santa</span>
 </button>
 
 <!-- Admin panel modal -->
 {#if showAdminPanel}
-  <div class="admin-modal-overlay" on:click|self={closePanel}>
-    <div class="admin-modal" on:click|stopPropagation>
-      <button class="close-button" on:click={closePanel}>×</button>
+  <div class="sheet-backdrop" role="presentation" use:portal on:click|self={closePanel}>
+    <div
+      class="sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="santa-title"
+    >
+      <div class="sheet-handle" aria-hidden="true"></div>
 
-      <h2>🎅 Panel de Santa</h2>
-      <p class="modal-subtitle">Asigna los amigos secretos para un juego</p>
+      <div class="sheet-head">
+        <div class="sheet-title">
+          <p class="eyebrow">Sorteo</p>
+          <h2 id="santa-title">Panel de Santa</h2>
+          <p class="sheet-subtitle">Asigna los amigos secretos de un intercambio.</p>
+        </div>
+
+        <button
+          class="btn btn-ghost btn-icon close-button"
+          type="button"
+          on:click={closePanel}
+          aria-label="Cerrar panel"
+        >
+          <X size={20} aria-hidden="true" />
+        </button>
+      </div>
 
       {#if adminSuccess}
-        <div class="success-message">
-          <div class="success-icon">✅</div>
-          <h3>¡Asignación Exitosa!</h3>
-          <p>Los amigos secretos han sido asignados y los emails están siendo enviados.</p>
-          <p class="note">El panel se cerrará automáticamente...</p>
+        <div class="success-message" role="status">
+          <span class="success-mark" aria-hidden="true">
+            <Check size={30} strokeWidth={2.2} />
+          </span>
+          <h3>¡Sorteo completado!</h3>
+          <p class="success-lede">
+            Cada participante ya tiene su amigo secreto asignado.
+          </p>
+
+          <div class="mail-notice">
+            <Mail size={19} aria-hidden="true" />
+            <div>
+              <strong>Emails enviados</strong>
+              <span>
+                Los avisos automáticos se han enviado correctamente a todos los
+                participantes.
+              </span>
+            </div>
+          </div>
+
+          <div class="sheet-progress" aria-hidden="true"></div>
+          <p class="note">Este panel se cerrará automáticamente en unos segundos.</p>
+
+          <button type="button" class="btn btn-secondary btn-block" on:click={closePanel}>
+            Cerrar panel
+          </button>
         </div>
       {:else}
         <div class="admin-form">
           {#if adminError}
-            <div class="error-message">
-              ⚠️ {adminError}
+            <div class="alert alert-error admin-error" role="alert">
+              <AlertCircle size={17} aria-hidden="true" />
+              <span>{adminError}</span>
             </div>
           {/if}
 
-          <div class="form-group">
-            <label for="adminGameCode">
-              <span class="icon">🔑</span> Código del Juego
-            </label>
-            <input
-              id="adminGameCode"
-              type="text"
-              bind:value={adminGameCode}
-              placeholder="Ej: X8B3K9"
-              required
-              maxlength="10"
-              disabled={adminLoading}
-            />
-            <div class="hint">Ingresa el código del juego que quieres asignar</div>
+          <div class="field">
+            <label class="field-label" for="adminGameCode">Código del juego</label>
+            <div class="input-wrap">
+              <KeyRound class="input-icon" size={18} aria-hidden="true" />
+              <input
+                id="adminGameCode"
+                class="input code-input"
+                type="text"
+                bind:value={adminGameCode}
+                placeholder="Ej. X8B3K9"
+                required
+                maxlength="10"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                disabled={adminLoading}
+              />
+            </div>
+            <p class="field-hint">
+              Escríbelo tal como lo compartiste con el grupo.
+            </p>
           </div>
 
           <!-- Participants list -->
           {#if adminGameCode && adminGameCode.length >= 3}
-            <div class="participants-section">
-              <h3>
-                <span class="section-icon">👥</span>
-                Participantes del Juego
+            <section class="participants-section" aria-live="polite">
+              <div class="section-head">
+                <h3>
+                  <Users size={17} aria-hidden="true" />
+                  Participantes
+                </h3>
+
                 {#if loadingParticipants}
-                  <span class="loading-spinner-small"></span>
-                {:else if participants.length > 0}
-                  <span class="participant-count">({participants.length})</span>
+                  <span class="mini-spinner" aria-label="Cargando"></span>
+                {:else}
+                  <span class="chip chip-gold count-chip">{participants.length}</span>
                 {/if}
-              </h3>
+              </div>
 
               {#if loadingParticipants}
                 <div class="loading-state">
-                  <div class="loading-spinner"></div>
-                  <p>Cargando participantes...</p>
+                  <span class="spinner" aria-hidden="true"></span>
+                  <p>Buscando participantes…</p>
                 </div>
               {:else if participants.length === 0}
                 <div class="empty-state">
-                  <span class="empty-icon">👻</span>
-                  <p>No hay participantes en este juego</p>
-                  <p class="note">Verifica que el código sea correcto</p>
+                  <UserX size={24} aria-hidden="true" />
+                  <p>No hay participantes todavía</p>
+                  <span>Comparte el código para que se apunten.</span>
                 </div>
               {:else}
-                <div class="participants-list">
-                  {#each participants as participant, index}
-                    <div class="participant-item">
-                      <div class="participant-number">#{index + 1}</div>
-                      <div class="participant-info">
-                        <div class="participant-name">{participant.name || 'Sin nombre'}</div>
-                        <div class="participant-email">{formatEmail(participant.email)}</div>
-                      </div>
-                      <div class="participant-status">
-                        {#if participant.assigned}
-                          <span class="assigned-badge">🎁 Asignado</span>
-                        {:else}
-                          <span class="pending-badge">⏳ Pendiente</span>
-                        {/if}
-                      </div>
-                    </div>
+                <ul class="participants-list">
+                  {#each participants as participant, index (participant.email || index)}
+                    <li class="participant-item">
+                      <span class="participant-avatar" aria-hidden="true">
+                        {initial(participant.name)}
+                      </span>
+
+                      <span class="participant-info">
+                        <span class="participant-name">
+                          {participant.name || 'Sin nombre'}
+                        </span>
+                        <span class="participant-email">
+                          {formatEmail(participant.email)}
+                        </span>
+                      </span>
+
+                      {#if participant.assigned}
+                        <span class="status-pill assigned">
+                          <Check size={13} aria-hidden="true" />
+                          Asignado
+                        </span>
+                      {:else}
+                        <span class="status-pill pending">
+                          <Clock size={13} aria-hidden="true" />
+                          Pendiente
+                        </span>
+                      {/if}
+                    </li>
                   {/each}
-                </div>
+                </ul>
 
                 <div class="participants-summary">
-                  <div class="summary-item">
-                    <span class="summary-label">Total:</span>
-                    <span class="summary-value">{participants.length} participantes</span>
+                  <div>
+                    <span>Total</span>
+                    <strong>{participants.length}</strong>
                   </div>
-                  <div class="summary-item">
-                    <span class="summary-label">Asignados:</span>
-                    <span class="summary-value">
-                      {participants.filter(p => p.assigned).length}
-                    </span>
+                  <div>
+                    <span>Asignados</span>
+                    <strong>{participants.filter((p) => p.assigned).length}</strong>
                   </div>
-                  <div class="summary-item">
-                    <span class="summary-label">Pendientes:</span>
-                    <span class="summary-value">
-                      {participants.filter(p => !p.assigned).length}
-                    </span>
+                  <div>
+                    <span>Pendientes</span>
+                    <strong>{participants.filter((p) => !p.assigned).length}</strong>
                   </div>
                 </div>
               {/if}
-            </div>
+            </section>
           {/if}
 
           <div class="requirements">
-            <h4>📋 Requisitos para asignar:</h4>
+            <div class="requirements-head">
+              <Info size={16} aria-hidden="true" />
+              <h4>Antes de hacer el sorteo</h4>
+            </div>
             <ul>
-              <li>✅ Al menos 3 participantes únicos</li>
-              <li>✅ Juego no asignado previamente</li>
-              <li>✅ Emails válidos de todos los participantes</li>
+              <li><Check size={14} aria-hidden="true" /> Al menos 3 participantes únicos</li>
+              <li><Check size={14} aria-hidden="true" /> El juego no debe estar asignado</li>
+              <li><Check size={14} aria-hidden="true" /> Todos necesitan un email válido</li>
             </ul>
-            <p class="note">Cada participante recibirá un email con su amigo secreto asignado.</p>
+            <p class="note">
+              Al hacer el sorteo, cada participante recibe su asignación por email
+              automáticamente.
+            </p>
           </div>
 
           <div class="action-buttons">
             <button
+              type="button"
+              class="btn btn-primary btn-block"
               on:click={assignSecretSantas}
               disabled={adminLoading || !adminGameCode.trim() || participants.length < 3}
-              class="assign-button"
             >
               {#if adminLoading}
-                <span class="spinner"></span> Asignando...
+                <span class="spinner" aria-hidden="true"></span>
+                <span>Sorteando…</span>
               {:else}
-                🎲 Asignar Amigos Secretos
+                <Shuffle size={18} aria-hidden="true" />
+                <span>Hacer el sorteo</span>
               {/if}
             </button>
 
             <button
+              type="button"
+              class="btn btn-secondary btn-block"
               on:click={closePanel}
-              class="cancel-button"
               disabled={adminLoading}
             >
               Cancelar
@@ -266,446 +427,453 @@
 {/if}
 
 <style>
-  /* Admin button */
-  .admin-button {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: linear-gradient(135deg, #c53030, #e53e3e);
-    color: white;
-    border: none;
-    border-radius: 20px;
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    z-index: 100;
-    box-shadow:
-      0 3px 10px rgba(0, 0, 0, 0.3),
-      0 0 10px rgba(197, 48, 48, 0.3);
-    transition: all 0.3s ease;
-    border: 2px solid rgba(255, 215, 0, 0.3);
-  }
+  /* Trigger ------------------------------------------------- */
 
-  .admin-button:hover {
-    background: linear-gradient(135deg, #9b2c2c, #c53030);
-    transform: translateY(-2px);
-    box-shadow:
-      0 5px 15px rgba(0, 0, 0, 0.4),
-      0 0 15px rgba(197, 48, 48, 0.4);
-  }
-
-  /* Admin modal */
-  .admin-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
+  .admin-trigger {
+    display: inline-flex;
+    flex: none;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(5px);
+    gap: 0.4rem;
+    min-height: 48px;
+    padding: 0.5rem 0.8rem;
+    color: var(--text-soft);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition:
+      color 0.18s ease,
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      transform 0.18s var(--ease-out);
   }
 
-  .admin-modal {
-    background: white;
-    border-radius: 16px;
-    padding: 2rem;
-    width: 90%;
-    max-width: 600px;
-    color: #2d3748;
-    position: relative;
-    box-shadow:
-      0 10px 30px rgba(0, 0, 0, 0.4),
-      0 0 20px rgba(255, 215, 0, 0.2);
-    border: 3px solid #c53030;
-    max-height: 90vh;
-    overflow-y: auto;
+  .admin-trigger :global(svg) {
+    color: var(--gold);
+  }
+
+  .admin-trigger:active {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) {
+    .admin-trigger:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--line-strong);
+    }
+  }
+
+  /* Sheet --------------------------------------------------- */
+
+  .sheet-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .sheet-title {
+    min-width: 0;
+  }
+
+  .sheet-title h2 {
+    margin: 0.25rem 0 0.2rem;
+    font-size: 1.42rem;
+    font-weight: 750;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+  }
+
+  .sheet-subtitle {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.81rem;
+    line-height: 1.4;
   }
 
   .close-button {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    color: #718096;
-    cursor: pointer;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
+    flex: none;
+    margin-top: -0.35rem;
+    margin-right: -0.35rem;
+  }
+
+  .admin-form {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
+    flex-direction: column;
+    gap: 1.1rem;
   }
 
-  .close-button:hover {
-    background: #f7fafc;
-    color: #4a5568;
+  .admin-error {
+    margin-bottom: -0.1rem;
   }
 
-  .admin-modal h2 {
-    color: #c53030;
-    text-align: center;
-    margin-bottom: 0.5rem;
-  }
-
-  .modal-subtitle {
-    text-align: center;
-    color: #718096;
-    margin-bottom: 1.5rem;
-    font-size: 0.95rem;
-  }
-
-  /* Admin form styles */
-  .admin-form .form-group {
-    margin-bottom: 1.5rem;
-  }
-
-  .admin-form label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
+  .code-input {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
     font-weight: 600;
-    color: #2d3748;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 
-  .admin-form input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #cbd5e0;
-    border-radius: 8px;
-    font-size: 1rem;
-    box-sizing: border-box;
-    transition: all 0.2s ease;
-  }
+  /* Participantes ------------------------------------------- */
 
-  .admin-form input:focus {
-    outline: none;
-    border-color: #c53030;
-    box-shadow: 0 0 0 3px rgba(197, 48, 48, 0.1);
-  }
-
-  .hint {
-    font-size: 0.85rem;
-    color: #718096;
-    margin-top: 0.3rem;
-    font-style: italic;
-  }
-
-  /* Participants section */
   .participants-section {
-    margin: 1.5rem 0;
-    background: #f8fafc;
-    border-radius: 12px;
-    padding: 1.5rem;
-    border: 1px solid #e2e8f0;
+    padding: 0.85rem;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    border-radius: var(--radius-lg);
   }
 
-  .participants-section h3 {
-    color: #2d3748;
-    margin-top: 0;
-    margin-bottom: 1rem;
+  .section-head {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 1.1rem;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
   }
 
-  .section-icon {
-    font-size: 1.2rem;
+  .section-head h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    color: var(--text);
+    font-size: 0.88rem;
+    font-weight: 650;
   }
 
-  .participant-count {
-    background: #c53030;
-    color: white;
-    font-size: 0.8rem;
-    padding: 0.2rem 0.6rem;
-    border-radius: 12px;
-    margin-left: auto;
+  .section-head h3 :global(svg) {
+    color: var(--gold);
   }
 
-  /* Loading state */
-  .loading-state {
-    text-align: center;
-    padding: 2rem;
-    color: #718096;
+  .count-chip {
+    min-height: 28px;
+    padding: 0.15rem 0.6rem;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
   }
 
-  .loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid #e2e8f0;
-    border-top: 3px solid #c53030;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 1rem;
-  }
-
-  .loading-spinner-small {
-    display: inline-block;
+  .mini-spinner {
     width: 16px;
     height: 16px;
-    border: 2px solid #e2e8f0;
-    border-top: 2px solid #c53030;
+    border: 2px solid rgba(255, 255, 255, 0.16);
+    border-top-color: var(--gold);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-left: 0.5rem;
+    animation: spin 0.7s linear infinite;
   }
 
-  /* Empty state */
-  .empty-state {
+  .loading-state {
+    padding: 1.4rem 0.5rem;
+    color: var(--muted);
     text-align: center;
-    padding: 2rem;
-    color: #a0aec0;
   }
 
-  .empty-icon {
-    font-size: 2.5rem;
-    display: block;
-    margin-bottom: 1rem;
+  .loading-state .spinner {
+    margin: 0 auto 0.6rem;
+    border-color: rgba(255, 255, 255, 0.14);
+    border-top-color: var(--gold);
   }
 
-  /* Participants list */
+  .loading-state p {
+    margin: 0;
+    font-size: 0.8rem;
+  }
+
+  .empty-state {
+    padding: 1.3rem 0.5rem;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .empty-state > :global(svg) {
+    margin: 0 auto 0.5rem;
+    color: var(--muted);
+    opacity: 0.8;
+  }
+
+  .empty-state p {
+    margin: 0 0 0.15rem;
+    color: var(--text-soft);
+    font-size: 0.84rem;
+    font-weight: 600;
+  }
+
+  .empty-state span {
+    font-size: 0.75rem;
+  }
+
   .participants-list {
-    max-height: 300px;
+    display: grid;
+    gap: 0.4rem;
+    max-height: 270px;
+    padding: 0;
+    margin: 0;
     overflow-y: auto;
-    border-radius: 8px;
-    background: white;
-    border: 1px solid #e2e8f0;
+    overscroll-behavior: contain;
+    list-style: none;
   }
 
   .participant-item {
     display: flex;
     align-items: center;
-    padding: 1rem;
-    border-bottom: 1px solid #edf2f7;
-    transition: background-color 0.2s ease;
+    gap: 0.6rem;
+    padding: 0.5rem 0.6rem;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: 14px;
   }
 
-  .participant-item:last-child {
-    border-bottom: none;
-  }
-
-  .participant-item:hover {
-    background-color: #f7fafc;
-  }
-
-  .participant-number {
-    background: #edf2f7;
-    color: #4a5568;
-    font-weight: bold;
-    width: 28px;
-    height: 28px;
+  .participant-avatar {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    color: #d9f4e5;
+    background: linear-gradient(145deg, rgba(45, 122, 85, 0.75), rgba(20, 73, 47, 0.9));
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.85rem;
-    margin-right: 1rem;
+    font-size: 0.8rem;
+    font-weight: 700;
   }
 
   .participant-info {
+    display: flex;
     flex: 1;
+    flex-direction: column;
+    min-width: 0;
   }
 
   .participant-name {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 0.82rem;
     font-weight: 600;
-    color: #2d3748;
-    margin-bottom: 0.25rem;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .participant-email {
-    font-size: 0.85rem;
-    color: #718096;
-    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    color: var(--muted);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 0.67rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .participant-status {
-    margin-left: 1rem;
-  }
-
-  .assigned-badge {
-    background: #c6f6d5;
-    color: #22543d;
-    font-size: 0.75rem;
-    padding: 0.3rem 0.6rem;
-    border-radius: 12px;
-    font-weight: 500;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .pending-badge {
-    background: #fed7d7;
-    color: #9b2c2c;
-    font-size: 0.75rem;
-    padding: 0.3rem 0.6rem;
-    border-radius: 12px;
-    font-weight: 500;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  /* Participants summary */
   .participants-summary {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
-    border-top: 1px dashed #e2e8f0;
+    gap: 0.4rem;
+    padding-top: 0.75rem;
+    margin-top: 0.75rem;
+    border-top: 1px dashed rgba(255, 255, 255, 0.09);
   }
 
-  .summary-item {
+  .participants-summary div {
     text-align: center;
   }
 
-  .summary-label {
+  .participants-summary span {
     display: block;
-    font-size: 0.85rem;
-    color: #718096;
-    margin-bottom: 0.25rem;
+    color: var(--muted);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
 
-  .summary-value {
+  .participants-summary strong {
     display: block;
-    font-weight: bold;
-    color: #2d3748;
-    font-size: 1.1rem;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
   }
+
+  /* Requisitos y acciones ----------------------------------- */
 
   .requirements {
-    background: #f7fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 1rem;
-    margin: 1.5rem 0;
+    padding: 0.85rem 0.9rem;
+    background: rgba(255, 255, 255, 0.028);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+  }
+
+  .requirements-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .requirements-head :global(svg) {
+    color: var(--gold);
   }
 
   .requirements h4 {
-    color: #2d5c2d;
-    margin-top: 0;
-    margin-bottom: 0.5rem;
+    margin: 0;
+    color: var(--text-soft);
+    font-size: 0.73rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
   }
 
   .requirements ul {
-    margin: 0.5rem 0;
-    padding-left: 1.25rem;
-    color: #4a5568;
+    display: grid;
+    gap: 0.35rem;
+    padding: 0;
+    margin: 0;
+    list-style: none;
   }
 
   .requirements li {
-    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    color: var(--muted);
+    font-size: 0.76rem;
+    line-height: 1.4;
+  }
+
+  .requirements li :global(svg) {
+    flex: none;
+    margin-top: 0.12rem;
+    color: var(--success);
   }
 
   .note {
-    font-size: 0.85rem;
-    color: #718096;
-    font-style: italic;
-    margin-top: 0.5rem;
+    margin: 0.6rem 0 0;
+    color: var(--muted);
+    font-size: 0.72rem;
+    line-height: 1.45;
   }
 
-  .error-message {
-    background: #fed7d7;
-    border: 1px solid #fc8181;
-    color: #9b2c2c;
-    padding: 0.75rem;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-    text-align: center;
+  .action-buttons {
+    display: grid;
+    gap: 0.6rem;
   }
+
+  /* Éxito --------------------------------------------------- */
 
   .success-message {
+    padding: 0.4rem 0 0;
     text-align: center;
-    padding: 1rem;
   }
 
-  .success-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    color: #2d5c2d;
+  .success-mark {
+    display: grid;
+    place-items: center;
+    width: 62px;
+    height: 62px;
+    margin: 0 auto 0.9rem;
+    color: #bdf6da;
+    background:
+      radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.22), transparent 55%),
+      linear-gradient(145deg, rgba(102, 199, 154, 0.3), rgba(45, 122, 85, 0.18));
+    border: 1px solid rgba(102, 199, 154, 0.35);
+    border-radius: 22px;
+    box-shadow: 0 16px 36px -18px rgba(102, 199, 154, 0.65);
+    animation: pop-in 0.42s var(--ease-out) both;
   }
 
   .success-message h3 {
-    color: #2d5c2d;
-    margin-bottom: 0.5rem;
+    margin: 0 0 0.35rem;
+    font-size: 1.35rem;
+    font-weight: 750;
+    letter-spacing: -0.025em;
   }
 
-  /* Action buttons */
-  .action-buttons {
+  .success-lede {
+    max-width: 38ch;
+    margin: 0 auto;
+    color: var(--text-soft);
+    font-size: 0.84rem;
+    line-height: 1.5;
+  }
+
+  .mail-notice {
     display: flex;
-    gap: 1rem;
-    margin-top: 1.5rem;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.85rem 0.9rem;
+    margin: 1.1rem 0 0;
+    text-align: left;
+    background: rgba(102, 199, 154, 0.09);
+    border: 1px solid rgba(102, 199, 154, 0.24);
+    border-radius: 16px;
   }
 
-  .assign-button {
-    flex: 2;
-    padding: 0.875rem;
-    background: #c53030;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: bold;
-    cursor: pointer;
+  .mail-notice > :global(svg) {
+    flex: none;
+    margin-top: 0.1rem;
+    color: var(--success);
+  }
+
+  .mail-notice div {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    transition: all 0.2s ease;
+    flex-direction: column;
+    gap: 0.1rem;
   }
 
-  .assign-button:hover:not(:disabled) {
-    background: #9b2c2c;
-    transform: translateY(-1px);
+  .mail-notice strong {
+    color: #bdf6da;
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
   }
 
-  .assign-button:disabled {
-    background: #cbd5e0;
-    cursor: not-allowed;
-    transform: none;
+  .mail-notice span {
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    line-height: 1.45;
   }
 
-  .cancel-button {
-    flex: 1;
-    padding: 0.875rem;
-    background: #e2e8f0;
-    color: #4a5568;
-    border: none;
-    border-radius: 8px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
+  .sheet-progress {
+    height: 3px;
+    margin: 1.2rem 0 0.6rem;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
   }
 
-  .cancel-button:hover:not(:disabled) {
-    background: #cbd5e0;
+  .sheet-progress::after {
+    display: block;
+    width: 100%;
+    height: 100%;
+    content: "";
+    background: linear-gradient(90deg, var(--gold), var(--success));
+    border-radius: inherit;
+    transform-origin: left center;
+    animation: progress 10s linear forwards;
   }
 
-  .cancel-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+  .success-message .btn {
+    margin-top: 0.9rem;
   }
 
-  .spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top: 2px solid white;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+  @media (min-width: 480px) {
+    .action-buttons {
+      grid-template-columns: 1.6fr 1fr;
+    }
   }
 
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+  @media (max-width: 420px) {
+    .trigger-label {
+      display: none;
+    }
+
+    .admin-trigger {
+      width: 48px;
+      padding: 0;
+    }
   }
 </style>
