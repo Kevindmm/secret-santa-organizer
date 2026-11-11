@@ -47,4 +47,17 @@ class HealthEndpointTest {
                 .andExpect(header().string("Access-Control-Allow-Origin",
                         "https://secret-santa-organizer-delta.vercel.app"));
     }
+
+    @Test
+    void rootAnswersOkForPlatformHealthChecks() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ok"));
+    }
+
+    @Test
+    void unknownPathReturnsNotFoundInsteadOfServerError() throws Exception {
+        mockMvc.perform(get("/this-path-does-not-exist"))
+                .andExpect(status().isNotFound());
+    }
 }
