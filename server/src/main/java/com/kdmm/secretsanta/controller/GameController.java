@@ -1,6 +1,7 @@
 package com.kdmm.secretsanta.controller;
 
 import com.kdmm.secretsanta.dto.GameRequest;
+import com.kdmm.secretsanta.dto.GameSummaryDTO;
 import com.kdmm.secretsanta.dto.ParticipantDTO;
 import com.kdmm.secretsanta.dto.ParticipantRequest;
 import com.kdmm.secretsanta.service.GameService;
@@ -20,6 +21,11 @@ public class GameController {
 
     public GameController(GameService gameService) {
         this.gameService = gameService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<GameSummaryDTO>> getAllGames() {
+        return ResponseEntity.ok(gameService.getAllGames());
     }
 
     @PostMapping
@@ -52,5 +58,13 @@ public class GameController {
     public ResponseEntity<List<ParticipantDTO>> getParticipants(@PathVariable String gameCode) {
         List<ParticipantDTO> participants = gameService.getParticipants(gameCode);
         return ResponseEntity.ok(participants);
+    }
+
+    @DeleteMapping("/{gameId}/participants/{participantId}")
+    public ResponseEntity<Void> deleteParticipant(
+            @PathVariable String gameId,
+            @PathVariable Long participantId) {
+        gameService.deleteParticipant(gameId, participantId);
+        return ResponseEntity.noContent().build();
     }
 }

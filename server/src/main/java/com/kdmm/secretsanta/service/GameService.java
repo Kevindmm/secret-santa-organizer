@@ -1,12 +1,14 @@
 package com.kdmm.secretsanta.service;
 
 import com.kdmm.secretsanta.dto.GameRequest;
+import com.kdmm.secretsanta.dto.GameSummaryDTO;
 import com.kdmm.secretsanta.dto.ParticipantDTO;
 import com.kdmm.secretsanta.dto.ParticipantRequest;
 import com.kdmm.secretsanta.exception.AlreadyAssignedException;
 import com.kdmm.secretsanta.exception.DuplicateEmailException;
 import com.kdmm.secretsanta.exception.GameNotFoundException;
 import com.kdmm.secretsanta.exception.InsufficientParticipantsException;
+import com.kdmm.secretsanta.exception.ParticipantNotFoundException;
 import com.kdmm.secretsanta.model.Game;
 import com.kdmm.secretsanta.model.Participant;
 import com.kdmm.secretsanta.repository.GameRepository;
@@ -16,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.*;
 
 @Service
@@ -26,6 +29,7 @@ public class GameService {
     private final GameRepository gameRepo;
     private final ParticipantRepository participantRepo;
     private final EmailService emailService;
+    private final SecureRandom random = new SecureRandom();
 
     public GameService(GameRepository gameRepo,
                        ParticipantRepository participantRepo,
@@ -105,40 +109,25 @@ public class GameService {
                 gameId, participants.size());
     }
 
-    // Create a valid participant without being the secret santa themselves
+    /**
+     * Builds a receiver list that is a cyclic permutation of the givers.
+     *
+     * <p>Uses the Sattolo algorithm: a uniformly random cyclic permutation.
+     * By construction every participant moves to a different position, so:
+     * <ul>
+     *   <li>nobody is assigned to themselves (no self-gifting), and</li>
+     *   <li>each participant appears exactly once as a receiver (no duplicates).</li>
+     * </ul>
+     * Unlike the previous retry-based shuffle, it always succeeds on the first
+     * attempt (for 2+ participants) and does not bias the result.</p>
+     */
     private List<Participant> createValidReceiverAssignment(List<Participant> participants) {
         List<Participant> receivers = new ArrayList<>(participants);
 
-        // Try random assignment first
-        boolean validAssignment = false;
-        int maxAttempts = 100;
-
-        for (int attempt = 0; attempt < maxAttempts && !validAssignment; attempt++) {
-            validAssignment = true;
-            Collections.shuffle(receivers);
-
-            // Verify no one gets themselves
-            for (int i = 0; i < participants.size(); i++) {
-                if (participants.get(i).getEmail().equals(receivers.get(i).getEmail())) {
-                    validAssignment = false;
-                    break;
-                }
-            }
-
-            if (!validAssignment && attempt == maxAttempts - 1) {
-                // Last resort: rotate the list
-                Collections.rotate(receivers, 1);
-                validAssignment = true;
-                for (int i = 0; i < participants.size(); i++) {
-                    if (participants.get(i).getEmail().equals(receivers.get(i).getEmail())) {
-                        // If still self-assignment after rotation, use double rotation
-                        receivers.clear();
-                        receivers.addAll(participants);
-                        Collections.rotate(receivers, 2);
-                        break;
-                    }
-                }
-            }
+        // Sattolo's algorithm: j is drawn from [0, i) so index i never keeps its value.
+        for (int i = receivers.size() - 1; i > 0; i--) {
+            int j = random.nextInt(i);
+            Collections.swap(receivers, i, j);
         }
 
         return receivers;
@@ -158,6 +147,43 @@ public class GameService {
 
             emailService.sendAssignment(giver, receiver, game);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<GameSummaryDTO> getAllGames() {
+        return gameRepo.findAll().stream()
+                .map(game -> new GameSummaryDTO(
+                        game.getId(),
+                        game.getName(),
+                        game.getMaxPrice(),
+                        game.getExchangeDate(),
+                        (int) participantRepo.countByGameId(game.getId()),
+                        game.isAssignmentsDone()))
+                .toList();
+    }
+
+    @Transactional
+    public void deleteParticipant(String gameId, Long participantId) {
+        log.info("Deleting participant {} from game {}", participantId, gameId);
+
+        Game game = gameRepo.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException(gameId));
+
+        // Once the draw is done, the assignment pairs must stay intact.
+        if (game.isAssignmentsDone()) {
+            throw new AlreadyAssignedException(gameId);
+        }
+
+        Participant participant = participantRepo.findById(participantId)
+                .orElseThrow(() -> new ParticipantNotFoundException(participantId));
+
+        // Prevent deleting a participant that belongs to a different game.
+        if (participant.getGame() == null || !gameId.equals(participant.getGame().getId())) {
+            throw new ParticipantNotFoundException(participantId);
+        }
+
+        participantRepo.delete(participant);
+        log.debug("Participant {} deleted from game {}", participantId, gameId);
     }
 
     public List<ParticipantDTO> getParticipants(String gameCode) {

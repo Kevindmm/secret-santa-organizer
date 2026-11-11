@@ -69,6 +69,7 @@ dist/
 **/application*.properties
 !**/src/main/resources/application.properties
 !**/src/main/resources/application-prod.properties
+!**/src/test/resources/application.properties
 
 ### Docker ###
 docker-compose.override.yml
