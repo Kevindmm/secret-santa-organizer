@@ -2,11 +2,15 @@
   import { onMount } from 'svelte';
   import { API_URL } from '$lib/config';
 
-  const TIMEOUT_MS = 6000;
-  const RETRY_MS = 4000;
+  const TIMEOUT_MS = 15000;
+  const DOWN_RETRY_MS = 4000;
+  const DEGRADED_RETRY_MS = 15000;
   const SLOW_AFTER_MS = 15000;
   const HIDE_AFTER_MS = 4000;
 
+  // 'down' = no hay respuesta HTTP (servicio dormido o arrancando).
+  // 'degraded' = la API responde pero la base de datos no.
+  // 'up' = API y base de datos correctas.
   let status = $state('down');
   let visible = $state(true);
   let slow = $state(false);
@@ -25,17 +29,36 @@
     controller = new AbortController();
     const requestTimeout = setTimeout(() => controller?.abort(), TIMEOUT_MS);
 
+    let nextStatus = 'down';
+
     try {
-      const response = await fetch(`${API_URL}/actuator/health/liveness`, {
+      const response = await fetch(`${API_URL}/actuator/health`, {
         signal: controller.signal,
         headers: { accept: 'application/json' }
       });
-      status = response.ok ? 'up' : 'down';
+
+      const body = await response.text();
+
+      /** @type {{ status?: string } | null} */
+      let payload = null;
+      try {
+        payload = JSON.parse(body);
+      } catch {
+        // Render devuelve una pagina HTML cuando el servicio no esta vivo.
+      }
+
+      if (payload?.status === 'UP') {
+        nextStatus = 'up';
+      } else if (payload) {
+        nextStatus = 'degraded';
+      }
     } catch {
-      status = 'down';
+      nextStatus = 'down';
     } finally {
       clearTimeout(requestTimeout);
     }
+
+    status = nextStatus;
 
     if (status === 'up') {
       clearTimeout(slowTimer);
@@ -46,7 +69,7 @@
       return;
     }
 
-    retryTimer = setTimeout(check, RETRY_MS);
+    retryTimer = setTimeout(check, status === 'degraded' ? DEGRADED_RETRY_MS : DOWN_RETRY_MS);
   }
 
   onMount(() => {
@@ -68,13 +91,16 @@
   <div
     class="status"
     class:is-up={status === 'up'}
+    class:is-degraded={status === 'degraded'}
     role="status"
     aria-live="polite"
   >
     <span class="dot" aria-hidden="true"></span>
     <span class="text">
       {#if status === 'up'}
-        Servidor conectado
+        Servidor y base de datos conectados
+      {:else if status === 'degraded'}
+        Servidor conectado, base de datos no disponible
       {:else if slow}
         El servidor está despertando, puede tardar un minuto
       {:else}
@@ -93,7 +119,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    max-width: min(300px, calc(100vw - 28px));
+    max-width: min(320px, calc(100vw - 28px));
     padding: 8px 12px;
     border: 1px solid var(--line);
     border-radius: 999px;
@@ -114,6 +140,12 @@
     background: var(--danger);
     box-shadow: 0 0 0 3px rgba(240, 122, 116, 0.16);
     animation: pulse 1.8s ease-in-out infinite;
+  }
+
+  .is-degraded .dot {
+    background: var(--gold);
+    box-shadow: 0 0 0 3px var(--gold-soft);
+    animation: none;
   }
 
   .is-up .dot {
