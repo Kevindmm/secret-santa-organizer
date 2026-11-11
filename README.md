@@ -207,6 +207,19 @@ BREVO_API_KEY
 
 `MAIL_FROM` must be a sender verified in Brevo.
 
+The free PostgreSQL instance on Render expires 30 days after creation. For a long-lived deployment, use an external managed database or a paid plan.
+
+### Health check and keep-alive
+
+The API exposes two endpoints:
+
+- `GET /actuator/health`: full status, including the database.
+- `GET /actuator/health/liveness`: process status only, without database access.
+
+On platforms that suspend idle services, an external cron can keep the API warm during the hours you need it. With cron-job.org, the expression `*/10 8-23 * * *` (timezone `Europe/Madrid`) sends a request every 10 minutes from 08:00 to 23:59. That is about 480 instance hours per month, well below Render's 750-hour free allowance.
+
+Point the cron to `/actuator/health/liveness` so every request does not query the database.
+
 ### Vercel
 
 Deploy the `frontend` directory. Set `PUBLIC_API_URL` to the public Render URL and use the default build command:
