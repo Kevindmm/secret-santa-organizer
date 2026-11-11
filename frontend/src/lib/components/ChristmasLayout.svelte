@@ -1,318 +1,282 @@
 <!-- frontend/src/lib/components/ChristmasLayout.svelte -->
 <script>
   import { onMount } from 'svelte';
-  import SantaPanel from './SantaPanel.svelte'; // Importar el componente
+  import { Snowflake } from 'lucide-svelte';
+  import SantaPanel from './SantaPanel.svelte';
 
-  export let title = "🎄 Organizador de Amigo Invisible";
+  export let title = 'Amigo Invisible';
 
-  // Generate snowflakes
+  /**
+   * @typedef {{ id: number, left: number, size: number, duration: number, delay: number, opacity: number, drift: number, type: string }} Snowflake
+   */
+
+  /** @type {Snowflake[]} */
   let snowflakes = [];
 
   onMount(() => {
-    // Create snowflakes
-    snowflakes = Array.from({ length: 80 }, (_, i) => ({
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) return;
+
+    // Nieve escasa y discreta: suficiente para dar ambiente, sin tapar el contenido.
+    snowflakes = Array.from({ length: 22 }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
-      size: 12 + Math.random() * 20,
-      speed: 3 + Math.random() * 4,
-      delay: Math.random() * 15,
-      opacity: 0.2 + Math.random() * 0.5,
-      sway: 1 + Math.random() * 2,
+      size: 7 + Math.random() * 10,
+      duration: 18 + Math.random() * 18,
+      delay: Math.random() * 18,
+      opacity: 0.1 + Math.random() * 0.28,
+      drift: -50 + Math.random() * 100,
       type: getRandomSnowflakeType()
     }));
-
-    // Create stars
-    createStars();
   });
 
-  // Snowflake types
   function getRandomSnowflakeType() {
-    const types = ['❄', '❅', '❆', '＊', '✱', '✦'];
+    const types = ['❄', '❅', '❆', '✦'];
     return types[Math.floor(Math.random() * types.length)];
   }
 
-  // Create stars
-  function createStars() {
-    const starsContainer = document.querySelector('.stars');
-    if (!starsContainer) return;
-
-    for (let i = 0; i < 25; i++) {
-      const star = document.createElement('div');
-      star.className = 'star';
-      star.style.left = `${Math.random() * 100}%`;
-      star.style.top = `${Math.random() * 100}%`;
-      star.style.animationDelay = `${Math.random() * 5}s`;
-      star.style.width = star.style.height = `${1 + Math.random() * 3}px`;
-      starsContainer.appendChild(star);
-    }
-  }
-
-  // Handle assignment completion
+  /** @param {CustomEvent<{ gameCode: string }>} event */
   function handleAssignment(event) {
     console.log('Amigos secretos asignados para:', event.detail.gameCode);
   }
 </script>
 
 <div class="christmas-layout">
-  <!-- Stars -->
-  <div class="stars"></div>
+  <div class="ambient" aria-hidden="true">
+    <span class="glow glow-gold"></span>
+    <span class="glow glow-red"></span>
 
-  <!-- Snowflakes -->
-  <div class="snowflakes">
-    {#each snowflakes as flake}
-      <div
-        class="snowflake"
-        style="
-          left: {flake.left}%;
-          font-size: {flake.size}px;
-          animation-duration: {15 + flake.speed * 8}s;
-          animation-delay: {flake.delay}s;
-          opacity: {flake.opacity};
-          --sway: {flake.sway};
-        "
-      >{flake.type}</div>
-    {/each}
+    <div class="snow">
+      {#each snowflakes as flake (flake.id)}
+        <span
+          class="snowflake"
+          style="
+            left: {flake.left}%;
+            font-size: {flake.size}px;
+            opacity: {flake.opacity};
+            animation-duration: {flake.duration}s;
+            animation-delay: -{flake.delay}s;
+            --drift: {flake.drift}px;
+          "
+        >{flake.type}</span>
+      {/each}
+    </div>
   </div>
 
-  <!-- Decorations -->
-  <div class="decoration decoration-1">🎁</div>
-  <div class="decoration decoration-2">✨</div>
-  <div class="decoration decoration-3">🌟</div>
-  <div class="decoration decoration-4">🕯️</div>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header-inner">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <Snowflake size={20} strokeWidth={1.75} />
+          </span>
+          <span class="brand-copy">
+            <span class="brand-eyebrow">Secret Santa</span>
+            <span class="brand-title">{title}</span>
+          </span>
+        </div>
 
-  <!-- Include SantaPanel component -->
-  <SantaPanel on:assigned={handleAssignment} />
-
-  <!-- Content -->
-  <div class="content-wrapper">
-    <header>
-      <h1>{title}</h1>
-      <p class="subtitle">Crea o únete a un intercambio de regalos navideño 🎁</p>
+        <SantaPanel on:assigned={handleAssignment} />
+      </div>
     </header>
 
-    <main>
+    <main class="app-main">
       <slot />
     </main>
 
-    <footer>
-      <p>✨ Que la magia de la Navidad esté con vosotros ✨</p>
+    <footer class="app-footer">
+      <p>Hecho para que solo te preocupes de regalar.</p>
     </footer>
   </div>
 </div>
 
 <style>
   .christmas-layout {
+    position: relative;
+    isolation: isolate;
+    min-height: 100vh;
+    min-height: 100dvh;
     background:
-      radial-gradient(ellipse at 20% 20%, rgba(255, 215, 0, 0.08) 0%, transparent 40%),
-      radial-gradient(ellipse at 80% 80%, rgba(255, 0, 0, 0.08) 0%, transparent 40%),
-      linear-gradient(135deg, #0a2e0a 0%, #1a472a 40%, #0a2e0a 100%);
-    color: #fff;
-    height: 100vh;
-    width: 100vw;
+      radial-gradient(ellipse 80% 55% at 50% -10%, rgba(45, 122, 85, 0.28), transparent 70%),
+      linear-gradient(180deg, #081810 0%, #07130d 45%, #061009 100%);
+  }
+
+  .ambient {
     position: fixed;
-    top: 0;
-    left: 0;
-    overflow: hidden;
-    margin: 0;
-    padding: 0;
-  }
-
-  /* Santa Panel Button (now handled inside SantaPanel.svelte) */
-
-  /* Stars */
-  .stars {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
+    inset: 0;
     z-index: 0;
-  }
-
-  .star {
-    position: absolute;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 50%;
-    animation: twinkle 4s infinite alternate ease-in-out;
-    opacity: 0;
-    box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
-  }
-
-  @keyframes twinkle {
-    0%, 100% {
-      opacity: 0;
-      transform: scale(0.7);
-    }
-    50% {
-      opacity: 0.7;
-      transform: scale(1.2);
-    }
-  }
-
-  /* Snowflakes */
-  .snowflakes {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    overflow: hidden;
     pointer-events: none;
-    z-index: 1;
+  }
+
+  .glow {
+    position: absolute;
+    width: 70vw;
+    height: 70vw;
+    max-width: 720px;
+    max-height: 720px;
+    border-radius: 50%;
+    filter: blur(90px);
+  }
+
+  .glow-gold {
+    top: -24%;
+    right: -28%;
+    background: #c79b3a;
+    opacity: 0.15;
+  }
+
+  .glow-red {
+    bottom: -30%;
+    left: -32%;
+    background: #a3312d;
+    opacity: 0.11;
+  }
+
+  .snow {
+    position: absolute;
+    inset: 0;
   }
 
   .snowflake {
     position: absolute;
-    top: -50px;
+    top: -8vh;
     color: rgba(255, 255, 255, 0.9);
-    text-shadow:
-      0 0 8px rgba(255, 255, 255, 0.7),
-      0 0 16px rgba(173, 216, 230, 0.5);
-    animation: snowfall linear infinite;
+    animation-name: snowfall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
     user-select: none;
-    filter: blur(0.3px);
+  }
+
+  .app-shell {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    padding-top: calc(0.7rem + var(--safe-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: 0.7rem;
+    padding-left: max(1rem, env(safe-area-inset-left));
+    background: linear-gradient(180deg, rgba(7, 19, 13, 0.94) 0%, rgba(7, 19, 13, 0.68) 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(18px) saturate(120%);
+    -webkit-backdrop-filter: blur(18px) saturate(120%);
+  }
+
+  .app-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-width: 0;
+  }
+
+  .brand-mark {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    color: var(--gold);
+    background: linear-gradient(145deg, rgba(233, 203, 123, 0.18), rgba(233, 203, 123, 0.05));
+    border: 1px solid rgba(233, 203, 123, 0.24);
+    border-radius: 14px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+  }
+
+  .brand-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.15;
+  }
+
+  .brand-eyebrow {
+    color: var(--gold);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .brand-title {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 0.98rem;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-main {
+    flex: 1;
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 1.5rem max(1rem, env(safe-area-inset-left)) 2.5rem max(1rem, env(safe-area-inset-right));
+  }
+
+  .app-footer {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 1rem 1.25rem calc(1.25rem + var(--safe-bottom));
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--muted);
+    font-size: 0.76rem;
+    text-align: center;
+  }
+
+  .app-footer p {
+    margin: 0;
   }
 
   @keyframes snowfall {
-    0% {
-      transform: translateY(-50px) translateX(0) rotate(0deg);
-      opacity: 0;
+    from {
+      transform: translate3d(0, -10vh, 0) rotate(0deg);
     }
-    10% {
-      opacity: var(--flake-opacity, 0.7);
-    }
-    90% {
-      opacity: var(--flake-opacity, 0.7);
-    }
-    100% {
-      transform:
-        translateY(calc(100vh + 50px))
-        translateX(calc(var(--sway, 1) * 100px))
-        rotate(720deg);
-      opacity: 0;
+    to {
+      transform: translate3d(var(--drift, 40px), 112vh, 0) rotate(320deg);
     }
   }
 
-  /* Decorations */
-  .decoration {
-    position: absolute;
-    font-size: 1.8rem;
-    opacity: 0.1;
-    filter: blur(0.5px);
-    z-index: 0;
-    animation: decorationFloat 25s ease-in-out infinite;
-  }
+  @media (min-width: 640px) {
+    .app-main {
+      padding-top: 2.25rem;
+      padding-right: 1.5rem;
+      padding-left: 1.5rem;
+    }
 
-  .decoration-1 { top: 15%; left: 8%; animation-delay: 0s; color: #ff4444; }
-  .decoration-2 { top: 70%; right: 12%; animation-delay: 7s; color: #ffd700; }
-  .decoration-3 { bottom: 20%; left: 15%; animation-delay: 14s; color: #ffffff; }
-  .decoration-4 { top: 35%; right: 5%; animation-delay: 21s; color: #44aaff; }
-
-  @keyframes decorationFloat {
-    0%, 100% {
-      transform: translateY(0) rotate(0deg) scale(1);
-      opacity: 0.1;
-    }
-    25% {
-      transform: translateY(-30px) rotate(90deg) scale(1.1);
-      opacity: 0.15;
-    }
-    50% {
-      transform: translateY(0) rotate(180deg) scale(1);
-      opacity: 0.1;
-    }
-    75% {
-      transform: translateY(30px) rotate(270deg) scale(0.9);
-      opacity: 0.15;
+    .brand-title {
+      font-size: 1.05rem;
     }
   }
 
-  /* Content wrapper */
-  .content-wrapper {
-    position: relative;
-    z-index: 2;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    padding: 1rem;
-    box-sizing: border-box;
-    overflow-y: auto;
-  }
-
-  /* Header */
-  header {
-    text-align: center;
-    margin-bottom: 1.5rem;
-    flex-shrink: 0;
-  }
-
-  h1 {
-    font-size: clamp(1.8rem, 4vw, 2.5rem);
-    color: #ffd700;
-    margin: 0.5rem 0;
-    text-shadow:
-      1px 1px 3px rgba(0, 0, 0, 0.3),
-      0 0 10px rgba(255, 215, 0, 0.3);
-    line-height: 1.2;
-  }
-
-  .subtitle {
-    font-size: clamp(0.9rem, 2vw, 1.1rem);
-    color: #c6f6d5;
-    opacity: 0.9;
-    margin: 0;
-    text-shadow: 0 0 5px rgba(198, 246, 213, 0.3);
-  }
-
-  /* Main content */
-  main {
-    flex: 1;
-    max-width: 600px;
-    width: 100%;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-  }
-
-  main > * {
-    max-height: 100%;
-    overflow-y: auto;
-  }
-
-  /* Footer */
-  footer {
-    text-align: center;
-    padding: 1rem 0;
-    margin-top: auto;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    color: #c6f6d5;
-    font-size: clamp(0.8rem, 2vw, 0.95rem);
-    flex-shrink: 0;
-    text-shadow: 0 0 5px rgba(198, 246, 213, 0.2);
-  }
-
-  /* Responsive */
-  @media (max-width: 768px) {
-    .decoration {
-      font-size: 1.4rem;
+  @media (max-width: 380px) {
+    .brand-mark {
+      width: 38px;
+      height: 38px;
     }
 
-    .snowflake {
-      font-size: 14px !important;
-    }
-  }
-
-  @media (max-height: 700px) {
-    header {
-      margin-bottom: 0.5rem;
-    }
-
-    h1 {
-      font-size: 1.5rem;
-    }
-
-    .snowflakes {
-      opacity: 0.7;
+    .brand-title {
+      font-size: 0.9rem;
     }
   }
 </style>

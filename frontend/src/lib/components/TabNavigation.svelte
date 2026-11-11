@@ -1,132 +1,110 @@
 <!-- frontend/src/lib/components/TabNavigation.svelte -->
 <script>
+  import { createEventDispatcher } from 'svelte';
+  import { Gift, Link2 } from 'lucide-svelte';
+
   // Export current active tab
   export let activeTab = 'create';
 
-  // Tab configuration
-  const tabs = [
-    { id: 'create', label: 'Crear Juego', icon: '🎁' },
-    { id: 'join', label: 'Unirse a Juego', icon: '🔗' }
-  ];
-
-  // Emit tab change event
-  import { createEventDispatcher } from 'svelte';
   const dispatch = createEventDispatcher();
 
+  const tabs = [
+    { id: 'create', label: 'Crear intercambio', icon: Gift },
+    { id: 'join', label: 'Unirme', icon: Link2 }
+  ];
+
+  /** @param {string} tabId */
   function selectTab(tabId) {
     activeTab = tabId;
     dispatch('tabchange', { tab: tabId });
   }
 </script>
 
-<div class="tab-navigation">
+<div class="tab-navigation" role="tablist" aria-label="Acciones del organizador">
   {#each tabs as tab (tab.id)}
     <button
+      type="button"
+      role="tab"
       class:active={activeTab === tab.id}
-      on:click={() => selectTab(tab.id)}
       aria-selected={activeTab === tab.id}
       aria-controls="tab-content"
+      on:click={() => selectTab(tab.id)}
     >
-      <span class="icon">{tab.icon}</span>
+      <svelte:component this={tab.icon} size={18} strokeWidth={1.9} aria-hidden="true" />
       <span class="label">{tab.label}</span>
-      {#if activeTab === tab.id}
-        <span class="indicator"></span>
-      {/if}
     </button>
   {/each}
 </div>
 
 <style>
   .tab-navigation {
-    display: flex;
-    gap: 0.5rem;
-    background: #f7fafc;
-    padding: 0.5rem;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    margin-bottom: 2rem;
-    max-width: 400px;
-    margin-left: auto;
-    margin-right: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 1.25rem;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
   }
 
   button {
-    flex: 1;
     position: relative;
-    padding: 0.875rem 1rem;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: #718096;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    transition: all 0.2s ease;
+    min-height: 52px;
+    padding: 0.6rem 0.75rem;
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    border-radius: 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.2;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.18s var(--ease-out);
   }
 
-  button:hover:not(.active) {
-    background: #edf2f7;
-    color: #4a5568;
+  button:active {
+    transform: scale(0.99);
   }
 
   button.active {
-    background: white;
-    color: #2d3748;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    color: var(--text);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.12) inset,
+      0 12px 26px -16px rgba(0, 0, 0, 0.9);
   }
 
-  button.active .icon {
-    color: #c53030;
-  }
-
-  button.active .label {
-    color: #2d3748;
-  }
-
-  .icon {
-    font-size: 1.25rem;
-    transition: color 0.2s ease;
+  button.active :global(svg) {
+    color: var(--gold);
   }
 
   .label {
-    transition: color 0.2s ease;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .indicator {
-    position: absolute;
-    bottom: -0.5rem;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 4px;
-    height: 4px;
-    background: #c53030;
-    border-radius: 50%;
-  }
-
-  /* Focus styles for accessibility */
-  button:focus {
-    outline: 2px solid #4299e1;
-    outline-offset: 2px;
-  }
-
-  /* Mobile responsiveness */
-  @media (max-width: 480px) {
-    .tab-navigation {
-      padding: 0.375rem;
-      gap: 0.25rem;
+  @media (hover: hover) {
+    button:hover:not(.active) {
+      color: var(--text-soft);
+      background: rgba(255, 255, 255, 0.04);
     }
+  }
 
+  @media (max-width: 380px) {
     button {
-      padding: 0.75rem 0.5rem;
-      font-size: 0.9rem;
-    }
-
-    .icon {
-      font-size: 1.1rem;
+      gap: 0.35rem;
+      padding-inline: 0.5rem;
+      font-size: 0.82rem;
     }
   }
 </style>
