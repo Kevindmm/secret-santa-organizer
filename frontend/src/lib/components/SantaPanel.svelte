@@ -14,10 +14,9 @@
     Users,
     X
   } from 'lucide-svelte';
+  import { API_URL } from '$lib/config';
 
   const dispatch = createEventDispatcher();
-
-  const API_URL = 'https://secret-santa-organizerv3.onrender.com';
 
   /**
    * @typedef {{ id?: number, name?: string, email?: string, assigned?: boolean }} Participant
@@ -88,18 +87,8 @@
   // Format email for display (partially masked)
   /** @param {string | undefined} email */
   function formatEmail(email) {
-    if (!email) return '';
-
-    const [username, domain] = email.split('@');
-    if (!username || !domain) return email;
-
-    // Keep first 3 characters, mask the rest before @
-    const maskedUsername =
-      username.length > 3
-        ? username.substring(0, 3) + '*'.repeat(Math.min(username.length - 3, 4))
-        : username;
-
-    return `${maskedUsername}@${domain}`;
+    // El backend ya devuelve el email enmascarado (ej. an***@dominio.com).
+    return email || '';
   }
 
   /** @param {string | undefined} name */
@@ -126,8 +115,18 @@
       });
 
       if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Error (${response.status}): ${errText}`);
+        if (response.status === 404) {
+          adminError = 'Juego no encontrado';
+        } else if (response.status === 400) {
+          adminError = 'Se necesitan al menos 3 participantes';
+        } else if (response.status === 409) {
+          adminError = 'El sorteo ya se hizo para este juego';
+        } else if (response.status === 429) {
+          adminError = 'Demasiados intentos. Espera un minuto antes de volver a sortear.';
+        } else {
+          adminError = 'Error al asignar amigos secretos';
+        }
+        return;
       }
 
       adminSuccess = true;
@@ -139,13 +138,8 @@
         adminGameCode = '';
         participants = [];
       }, 10000);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      adminError = message.includes('404')
-        ? 'Juego no encontrado'
-        : message.includes('menos')
-        ? 'Se necesitan al menos 3 participantes'
-        : 'Error al asignar amigos secretos';
+    } catch {
+      adminError = 'No se pudo conectar con el servidor. Inténtalo de nuevo.';
     } finally {
       adminLoading = false;
     }

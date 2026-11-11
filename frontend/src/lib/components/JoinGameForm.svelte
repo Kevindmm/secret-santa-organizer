@@ -11,6 +11,7 @@
     User,
     UserPlus
   } from 'lucide-svelte';
+  import { API_URL } from '$lib/config';
 
   // State
   let gameCode = '';
@@ -44,8 +45,6 @@
     loading = true;
     error = null;
 
-    const API_URL = 'https://secret-santa-organizerv3.onrender.com';
-
     try {
       const response = await fetch(`${API_URL}/api/games/${formattedGameCode}/participants`, {
         method: 'POST',
@@ -58,18 +57,21 @@
       });
 
       if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Error (${response.status}): ${errText}`);
+        if (response.status === 404) {
+          error = 'Juego no encontrado. Verifica el código.';
+        } else if (response.status === 409) {
+          error = 'Este email ya está registrado en el juego.';
+        } else if (response.status === 429) {
+          error = 'Demasiados intentos. Espera un minuto y vuelve a probar.';
+        } else {
+          error = 'Error al unirse al juego. Verifica los datos.';
+        }
+        return;
       }
 
       success = true;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      error = message.includes('404')
-        ? 'Juego no encontrado. Verifica el código.'
-        : message.includes('duplicate')
-        ? 'Este email ya está registrado en el juego.'
-        : 'Error al unirse al juego. Verifica el código.';
+    } catch {
+      error = 'No se pudo conectar con el servidor. Inténtalo de nuevo.';
     } finally {
       loading = false;
     }
