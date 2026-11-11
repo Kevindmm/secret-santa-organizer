@@ -43,17 +43,12 @@
     return `${year}-${month}-${day}`;
   }
 
-  /** Next 24 December: this year, or next year once Christmas has passed. */
-  function nextChristmas() {
-    const today = new Date();
-    const passed = today.getMonth() === 11 && today.getDate() > 25;
-    return new Date(today.getFullYear() + (passed ? 1 : 0), 11, 24);
-  }
-
   function initDate() {
     const today = new Date();
+    // Default to today: it always belongs to the current year and never
+    // proposes a date months away, which is confusing right after Christmas.
+    exchangeDate = toIsoDate(today);
     minDate = toIsoDate(today);
-    exchangeDate = toIsoDate(nextChristmas());
   }
 
   onMount(initDate);
