@@ -19,6 +19,7 @@
   let gameName = '';
   let maxPrice = 10;
   let exchangeDate = '';
+  let minDate = '';
   let loading = false;
   /** @type {string | null} */
   let error = null;
@@ -31,10 +32,28 @@
 
   $: rangeProgress = (maxPrice / 50) * 100;
 
+  /**
+   * Local ISO date (YYYY-MM-DD), avoiding the UTC shift of toISOString.
+   * @param {Date} date
+   */
+  function toIsoDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  /** Next 24 December: this year, or next year once Christmas has passed. */
+  function nextChristmas() {
+    const today = new Date();
+    const passed = today.getMonth() === 11 && today.getDate() > 25;
+    return new Date(today.getFullYear() + (passed ? 1 : 0), 11, 24);
+  }
+
   function initDate() {
     const today = new Date();
-    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 10);
-    exchangeDate = nextMonth.toISOString().split('T')[0];
+    minDate = toIsoDate(today);
+    exchangeDate = toIsoDate(nextChristmas());
   }
 
   onMount(initDate);
@@ -179,7 +198,7 @@
           <span class="detail-copy">
             <span>Fecha del intercambio</span>
             <strong>
-              {new Date(exchangeDate).toLocaleDateString('es-ES', {
+              {new Date(`${exchangeDate}T00:00:00`).toLocaleDateString('es-ES', {
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric'
@@ -275,7 +294,7 @@
             type="date"
             bind:value={exchangeDate}
             required
-            min={new Date().toISOString().split('T')[0]}
+            min={minDate}
             disabled={loading}
           />
         </div>
