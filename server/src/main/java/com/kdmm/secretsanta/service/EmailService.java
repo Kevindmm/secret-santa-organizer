@@ -121,6 +121,8 @@ public class EmailService {
         String exchangeDate = game.getExchangeDate() == null
                 ? null
                 : game.getExchangeDate().format(SPANISH_DATE);
+        String seasonYear = game.getExchangeDate() == null
+                ? "" : " " + game.getExchangeDate().getYear();
 
         String greeting = safeGiverName.isEmpty()
                 ? "\u00A1Hola!" : "\u00A1Hola, " + safeGiverName + "!";
@@ -160,7 +162,7 @@ public class EmailService {
                                     <tr>
                                         <td bgcolor="#14492f" style="background-color:#14492f;border-radius:14px 14px 0 0;padding:30px 28px;">
                                             <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#e9cb7b;">Secret Santa Organizer</p>
-                                            <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.3;font-weight:normal;color:#ffffff;">Tu amigo invisible</h1>
+                                            <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.3;font-weight:normal;color:#ffffff;">Tu amigo invisible{{YEAR}}</h1>
                                         </td>
                                     </tr>
                                     <tr>
@@ -208,7 +210,8 @@ public class EmailService {
                 </html>
                 """.replace("{{GREETING}}", greeting)
                 .replace("{{RECEIVER}}", safeReceiverName)
-                .replace("{{DETAILS}}", details);
+                .replace("{{DETAILS}}", details)
+                .replace("{{YEAR}}", seasonYear);
 
         StringBuilder text = new StringBuilder();
         text.append(plainGreeting).append("\n\n");
@@ -243,7 +246,9 @@ public class EmailService {
         payload.put("to", List.of(Map.of(
                 "email", giver.getEmail() == null ? "" : giver.getEmail(),
                 "name", singleLine(giver.getName()))));
-        payload.put("subject", "\uD83C\uDF81 \u00A1Tu amigo invisible ha sido asignado!");
+        payload.put("subject", seasonYear.isEmpty()
+                ? "\uD83C\uDF81 \u00A1Tu amigo invisible ha sido asignado!"
+                : "\uD83C\uDF81 Tu amigo invisible" + seasonYear + " ya est\u00E1 listo");
         payload.put("htmlContent", htmlContent);
         payload.put("textContent", text.toString());
 

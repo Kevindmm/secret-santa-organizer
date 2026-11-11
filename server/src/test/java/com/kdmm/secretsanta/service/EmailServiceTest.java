@@ -109,6 +109,25 @@ class EmailServiceTest {
         assertFalse(html.contains("<b>Navidad</b>"));
     }
 
+    @Test
+    void buildEmailJson_usesTheExchangeYearInSubjectAndHeader() throws Exception {
+        Participant giver = participant(1L, "Ana", "ana@test.com");
+        Participant receiver = participant(2L, "Bruno", "bruno@test.com");
+
+        Game game = new Game("ABC12345");
+        game.setExchangeDate(LocalDate.of(2027, 12, 24));
+
+        JsonNode payload = objectMapper.readTree(
+                emailService.buildEmailJson(giver, receiver, game));
+
+        String subject = payload.path("subject").asText();
+        String html = payload.path("htmlContent").asText();
+
+        assertTrue(subject.contains("2027"), "The subject must show the exchange year");
+        assertTrue(html.contains("Tu amigo invisible 2027"));
+        assertTrue(html.contains("24 de diciembre de 2027"));
+    }
+
     private static Participant participant(long id, String name, String email) {
         Participant participant = new Participant();
         participant.setId(id);
