@@ -180,6 +180,8 @@ This starts PostgreSQL and the Spring Boot API on `http://localhost:8080`. The f
 | `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/secretsanta` | Database URL |
 | `SPRING_DATASOURCE_USERNAME` | `postgres` | Database user |
 | `SPRING_DATASOURCE_PASSWORD` | `postgres` | Database password |
+| `DB_POOL_SIZE` | `5` | Hikari maximum pool size |
+| `DB_POOL_MIN_IDLE` | `2` | Hikari minimum idle connections |
 | `MAIL_FROM` | empty | Verified sender address in Brevo |
 | `MAIL_FROM_NAME` | `Secret Santa Organizer` | Sender display name |
 | `BREVO_API_KEY` | empty | Brevo API key |
@@ -207,7 +209,36 @@ BREVO_API_KEY
 
 `MAIL_FROM` must be a sender verified in Brevo.
 
-The free PostgreSQL instance on Render expires 30 days after creation. For a long-lived deployment, use an external managed database or a paid plan.
+The free PostgreSQL instance on Render expires 30 days after creation. For a long-lived deployment, use Supabase (see below) or a paid plan.
+
+### Supabase database
+
+Supabase can replace Render PostgreSQL. Use the **Session pooler** (port 5432): the shared pooler is IPv4-compatible and supports prepared statements, which Hibernate uses.
+
+1. Create a Supabase project and open **Connect** in the dashboard.
+2. Copy the **Session pooler** connection string:
+   ```text
+   postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+   ```
+3. Set these variables on Render:
+   ```text
+   SPRING_PROFILES_ACTIVE=prod
+   SPRING_DATASOURCE_URL=jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+   SPRING_DATASOURCE_USERNAME=postgres.<project-ref>
+   SPRING_DATASOURCE_PASSWORD=<password>
+   ```
+4. Remove the old `DATABASE_URL`, `DATABASE_USERNAME` and `DATABASE_PASSWORD` variables.
+
+`sslmode=require` is mandatory. Percent-encode reserved characters in the password (`@`, `:`, `/`, `?`, `#`). The application caps the Hikari pool at 5 connections, well below the pooler limit.
+
+To migrate existing data:
+
+```bash
+pg_dump -Fc --no-owner --no-acl "<render-external-url>" -f secretsanta.dump
+pg_restore --no-owner --no-acl -d "<supabase-session-pooler-url>" secretsanta.dump
+```
+
+Free Supabase projects pause after 7 days without database activity. The liveness probe does not touch the database, so it does not prevent this. A daily request to `/actuator/health` is enough to keep the project active; otherwise, resume it from the dashboard. Data is kept for up to one year after pausing.
 
 ### Health check and keep-alive
 
