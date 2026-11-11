@@ -1,18 +1,24 @@
 package com.kdmm.secretsanta.service;
 
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.kdmm.secretsanta.model.Game;
 import com.kdmm.secretsanta.model.Participant;
+import com.kdmm.secretsanta.util.EmailMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class EmailService {
@@ -21,29 +27,41 @@ public class EmailService {
     private static final String BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
     private final HttpClient httpClient;
+    private final ObjectMapper objectMapper;
+    private final String brevoApiKey;
+    private final String fromAddress;
+    private final String senderName;
 
-    @Value("${brevo.api.key:}")
-    private String brevoApiKey;
-
-    @Value("${app.email.sender:no-reply@secret-santa.com}")
-    private String fromAddress;
-
-    public EmailService() {
+    public EmailService(ObjectMapper objectMapper,
+                        @Value("${brevo.api.key:}") String brevoApiKey,
+                        @Value("${app.email.sender:}") String fromAddress,
+                        @Value("${app.email.sender-name:Secret Santa Organizer}") String senderName) {
+        this.objectMapper = objectMapper;
+        this.brevoApiKey = brevoApiKey;
+        this.fromAddress = fromAddress;
+        this.senderName = senderName;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
     }
 
-    @Async
     public void sendAssignment(Participant giver, Participant receiver, Game game) {
+        String maskedGiver = EmailMasker.mask(giver.getEmail());
+
         if (brevoApiKey == null || brevoApiKey.isBlank()) {
             log.info("Email service disabled. No API key configured.");
             log.info("SIMULATED EMAIL To: {}, Giver: {}, Receiver: {}",
-                    giver.getEmail(), giver.getName(), receiver.getName());
+                    maskedGiver, giver.getName(), receiver.getName());
             return;
         }
 
-        log.info("Sending assignment email to: {}", giver.getEmail());
+        if (!isValidEmail(giver.getEmail()) || fromAddress == null || fromAddress.isBlank()) {
+            log.error("Skipping assignment email: missing recipient or sender address.");
+            return;
+        }
+
+        log.info("Sending assignment email to: {}", maskedGiver);
 
         try {
             String jsonBody = buildEmailJson(giver, receiver, game);
@@ -60,25 +78,33 @@ public class EmailService {
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenAccept(response -> {
                         if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                            log.info("Email sent successfully to: {}", giver.getEmail());
+                            log.info("Email sent successfully to: {}", maskedGiver);
                         } else {
-                            log.error("Failed to send email to {}: HTTP {} - {}",
-                                    giver.getEmail(), response.statusCode(), response.body());
+                            // Never log the response body: it may contain recipient data.
+                            log.error("Failed to send email to {}: HTTP {}",
+                                    maskedGiver, response.statusCode());
                         }
                     })
                     .exceptionally(e -> {
-                        log.error("Error sending email to {}: {}", giver.getEmail(), e.getMessage());
+                        log.error("Error sending email to {}: {}", maskedGiver, e.getMessage());
                         return null;
                     });
 
         } catch (Exception e) {
-            log.error("Failed to send email to {}: {}", giver.getEmail(), e.getMessage());
+            log.error("Failed to send email to {}: {}", maskedGiver, e.getMessage());
         }
     }
 
-    private String buildEmailJson(Participant giver, Participant receiver, Game game) {
-        String wishList = receiver.getWishList() != null ?
-                receiver.getWishList() : "No ha compartido lista de deseos";
+    // Package-private so the payload (escaping) can be unit tested.
+    String buildEmailJson(Participant giver, Participant receiver, Game game)
+            throws JacksonException {
+        String wishList = receiver.getWishList() != null && !receiver.getWishList().isBlank()
+                ? receiver.getWishList() : "No ha compartido lista de deseos";
+
+        // User-provided values are HTML-escaped before being embedded in the email.
+        String safeGiverName = HtmlUtils.htmlEscape(singleLine(giver.getName()));
+        String safeReceiverName = HtmlUtils.htmlEscape(singleLine(receiver.getName()));
+        String safeWishList = HtmlUtils.htmlEscape(wishList);
 
         String htmlContent = String.format("""
             <!DOCTYPE html>
@@ -231,9 +257,9 @@ public class EmailService {
             </body>
             </html>
             """,
-                giver.getName(),
-                receiver.getName(),
-                wishList,
+                safeGiverName,
+                safeReceiverName,
+                safeWishList,
                 game.getMaxPrice(),
                 game.getExchangeDate()
         );
@@ -275,49 +301,38 @@ public class EmailService {
             El equipo de Secret Santa Organizer
             🎅🎁🎄
             """,
-                giver.getName(),
-                receiver.getName(),
+                singleLine(giver.getName()),
+                singleLine(receiver.getName()),
                 wishList,
                 game.getMaxPrice(),
                 game.getExchangeDate()
         );
 
-        String escapedHtml = htmlContent
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\t", "\\t")
-                .replace("\r", "\\r");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("sender", Map.of(
+                "email", fromAddress == null ? "" : fromAddress,
+                "name", singleLine(senderName).isEmpty()
+                        ? "Secret Santa Organizer" : singleLine(senderName)));
+        payload.put("to", List.of(Map.of(
+                "email", giver.getEmail() == null ? "" : giver.getEmail(),
+                "name", singleLine(giver.getName()))));
+        payload.put("subject", "🎁 ¡Tu amigo invisible ha sido asignado!");
+        payload.put("htmlContent", htmlContent);
+        payload.put("textContent", textContent);
 
-        String escapedText = textContent
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\t", "\\t")
-                .replace("\r", "\\r");
+        // Jackson handles JSON escaping, preventing broken payloads or injection.
+        return objectMapper.writeValueAsString(payload);
+    }
 
-        return String.format("""
-            {
-                "sender": {
-                    "email": "%s",
-                    "name": "Secret Santa Organizer"
-                },
-                "to": [
-                    {
-                        "email": "%s",
-                        "name": "%s"
-                    }
-                ],
-                "subject": "🎁 ¡Tu amigo invisible ha sido asignado!",
-                "htmlContent": "%s",
-                "textContent": "%s"
-            }
-            """,
-                fromAddress,
-                giver.getEmail(),
-                giver.getName(),
-                escapedHtml,
-                escapedText
-        );
+    private static String singleLine(String value) {
+        return value == null ? "" : value.replaceAll("[\\r\\n]+", " ").trim();
+    }
+
+    private static boolean isValidEmail(String email) {
+        return email != null
+                && !email.isBlank()
+                && email.indexOf('@') > 0
+                && !email.contains("\r")
+                && !email.contains("\n");
     }
 }
