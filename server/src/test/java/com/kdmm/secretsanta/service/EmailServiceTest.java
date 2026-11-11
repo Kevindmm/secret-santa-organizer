@@ -71,6 +71,44 @@ class EmailServiceTest {
                 .contains("No ha compartido lista de deseos"));
     }
 
+    @Test
+    void buildEmailJson_preservesWishListLineBreaksAndOmitsMissingDetails() throws Exception {
+        Participant giver = participant(1L, "Ana", "ana@test.com");
+        Participant receiver = participant(2L, "Bruno", "bruno@test.com");
+        receiver.setWishList("Un libro\nUna taza");
+
+        Game game = new Game("ABC12345");
+        game.setName("Oficina 2026");
+
+        JsonNode payload = objectMapper.readTree(
+                emailService.buildEmailJson(giver, receiver, game));
+
+        String html = payload.path("htmlContent").asText();
+        String text = payload.path("textContent").asText();
+
+        assertTrue(html.contains("Un libro<br>Una taza"), "Newlines must render as line breaks");
+        assertTrue(html.contains("Oficina 2026"), "The game name must be part of the email");
+        assertFalse(html.contains("null"), "Missing budget or date must not render as null");
+        assertFalse(text.contains("null"));
+        assertFalse(text.contains("PRESUPUESTO"), "The budget row is omitted when it is not set");
+    }
+
+    @Test
+    void buildEmailJson_escapesTheGameName() throws Exception {
+        Participant giver = participant(1L, "Ana", "ana@test.com");
+        Participant receiver = participant(2L, "Bruno", "bruno@test.com");
+
+        Game game = new Game("ABC12345");
+        game.setName("<b>Navidad</b>");
+
+        JsonNode payload = objectMapper.readTree(
+                emailService.buildEmailJson(giver, receiver, game));
+
+        String html = payload.path("htmlContent").asText();
+        assertTrue(html.contains("&lt;b&gt;Navidad&lt;/b&gt;"));
+        assertFalse(html.contains("<b>Navidad</b>"));
+    }
+
     private static Participant participant(long id, String name, String email) {
         Participant participant = new Participant();
         participant.setId(id);
