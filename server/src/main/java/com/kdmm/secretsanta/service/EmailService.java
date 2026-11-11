@@ -16,8 +16,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -25,6 +27,8 @@ public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     private static final String BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+    private static final DateTimeFormatter SPANISH_DATE =
+            DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", Locale.forLanguageTag("es-ES"));
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -99,214 +103,137 @@ public class EmailService {
     String buildEmailJson(Participant giver, Participant receiver, Game game)
             throws JacksonException {
         String wishList = receiver.getWishList() != null && !receiver.getWishList().isBlank()
-                ? receiver.getWishList() : "No ha compartido lista de deseos";
+                ? truncate(receiver.getWishList(), 800) : "No ha compartido lista de deseos";
 
         // User-provided values are HTML-escaped before being embedded in the email.
-        String safeGiverName = HtmlUtils.htmlEscape(singleLine(giver.getName()));
-        String safeReceiverName = HtmlUtils.htmlEscape(singleLine(receiver.getName()));
-        String safeWishList = HtmlUtils.htmlEscape(wishList);
+        String plainGiverName = singleLine(giver.getName());
+        String plainReceiverName = singleLine(receiver.getName());
+        String plainGameName = singleLine(game.getName());
 
-        String htmlContent = String.format("""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-                <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                        line-height: 1.6;
-                        color: #333;
-                        margin: 0;
-                        padding: 0;
-                        -webkit-text-size-adjust: 100%%;
-                        -ms-text-size-adjust: 100%%;
-                    }
-                    .container {
-                        max-width: 600px;
-                        margin: 0 auto;
-                        padding: 20px;
-                    }
-                    .header {
-                        background: linear-gradient(135deg, #c53030, #e53e3e);
-                        color: white;
-                        padding: 30px 20px;
-                        text-align: center;
-                        border-radius: 10px 10px 0 0;
-                    }
-                    .header h1 {
-                        margin: 0;
-                        font-size: 28px;
-                    }
-                    .content {
-                        background: white;
-                        padding: 25px;
-                        border: 2px solid #e2e8f0;
-                        border-top: none;
-                        border-radius: 0 0 10px 10px;
-                    }
-                    .assignment-box {
-                        background: #f7fafc;
-                        padding: 20px;
-                        border-radius: 8px;
-                        margin: 20px 0;
-                        border-left: 4px solid #c53030;
-                    }
-                    .assignment-name {
-                        font-size: 24px;
-                        color: #c53030;
-                        font-weight: bold;
-                        margin: 10px 0;
-                    }
-                    .info-row {
-                        margin: 15px 0;
-                        padding: 15px;
-                        background: #edf2f7;
-                        border-radius: 8px;
-                        font-size: 16px;
-                    }
-                    .label {
-                        font-weight: bold;
-                        color: #2d3748;
-                        display: block;
-                        margin-bottom: 5px;
-                        font-size: 14px;
-                    }
-                    .tips-box {
-                        margin-top: 30px;
-                        padding: 20px;
-                        background: #fffbeb;
-                        border-radius: 8px;
-                        border-left: 4px solid #f59e0b;
-                    }
-                    .footer {
-                        text-align: center;
-                        margin-top: 30px;
-                        color: #718096;
-                        font-size: 14px;
-                        padding-top: 20px;
-                        border-top: 1px solid #e2e8f0;
-                    }
-                    @media only screen and (max-width: 600px) {
-                        .container {
-                            padding: 10px;
-                        }
-                        .header {
-                            padding: 25px 15px;
-                        }
-                        .header h1 {
-                            font-size: 24px;
-                        }
-                        .content {
-                            padding: 20px 15px;
-                        }
-                        .assignment-name {
-                            font-size: 22px;
-                        }
-                        .info-row {
-                            padding: 12px;
-                            font-size: 15px;
-                        }
-                    }
-                    @media only screen and (max-width: 400px) {
-                        .header h1 {
-                            font-size: 22px;
-                        }
-                        .assignment-name {
-                            font-size: 20px;
-                        }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🎄 SECRET SANTA 🎄</h1>
-                    </div>
-                    <div class="content">
-                        <h2 style="margin-top: 0;">¡Hola %s! 👋</h2>
-                        <p style="font-size: 16px;">¡Excelentes noticias! La asignación del amigo invisible ya está lista.</p>
-                        <div class="assignment-box">
-                            <div class="label">🎯 TU AMIGO SECRETO ES:</div>
-                            <div class="assignment-name">%s</div>
-                        </div>
-                        <div class="info-row">
-                            <span class="label">📝 Lista de deseos:</span>
-                            %s
-                        </div>
-                        <div class="info-row">
-                            <span class="label">💰 Presupuesto máximo:</span> %s €
-                        </div>
-                        <div class="info-row">
-                            <span class="label">📅 Fecha del intercambio:</span> %s
-                        </div>
-                        <div class="tips-box">
-                            <h3 style="margin-top: 0; color: #d97706;">✨ Consejos:</h3>
-                            <ul style="margin: 10px 0; padding-left: 20px;">
-                                <li>Sé creativo con tu regalo 🎁</li>
-                                <li>Lo importante es el detalle 💝</li>
-                                <li>¡Mantén el secreto! 🤫</li>
-                            </ul>
-                        </div>
-                        <div class="footer">
-                            <p style="margin: 5px 0;">Que la magia de la Navidad te acompañe 🎅🎁</p>
-                            <p style="margin: 5px 0; font-weight: bold;">Secret Santa Organizer</p>
-                        </div>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """,
-                safeGiverName,
-                safeReceiverName,
-                safeWishList,
-                game.getMaxPrice(),
-                game.getExchangeDate()
-        );
+        String safeGiverName = HtmlUtils.htmlEscape(plainGiverName);
+        String safeReceiverName = HtmlUtils.htmlEscape(plainReceiverName);
+        String safeGameName = HtmlUtils.htmlEscape(plainGameName);
+        String safeWishList = escapeMultiline(wishList);
 
-        String textContent = String.format("""
-            ╔══════════════════════════════════════╗
-                         🎄 SECRET SANTA 🎄
-            ╚══════════════════════════════════════╝
-            
-            Hola %s,
-            
-            ¡Excelentes noticias! La asignación del amigo invisible 
-            ya está lista y estamos emocionados de compartirla contigo.
-            
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            🎯 PERSONA ASIGNADA:
-               %s
-            
-            📝 LISTA DE DESEOS:
-               %s
-            
-            💰 PRESUPUESTO MÁXIMO:
-               %s €
-            
-            📅 FECHA DEL INTERCAMBIO:
-               %s
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            
-            ✨ Consejos:
-            • Sé creativo con tu regalo
-            • Lo importante es el detalle
-            • ¡Mantén el secreto! 🤫
-            
-            Que la magia de la Navidad te acompañe en esta 
-            bonita tradición.
-            
-            ──────────────────────────────────────
-            Con cariño navideño,
-            El equipo de Secret Santa Organizer
-            🎅🎁🎄
-            """,
-                singleLine(giver.getName()),
-                singleLine(receiver.getName()),
-                wishList,
-                game.getMaxPrice(),
-                game.getExchangeDate()
-        );
+        String price = game.getMaxPrice() == null
+                ? null
+                : game.getMaxPrice().stripTrailingZeros().toPlainString() + " \u20AC";
+        String exchangeDate = game.getExchangeDate() == null
+                ? null
+                : game.getExchangeDate().format(SPANISH_DATE);
+
+        String greeting = safeGiverName.isEmpty()
+                ? "\u00A1Hola!" : "\u00A1Hola, " + safeGiverName + "!";
+        String plainGreeting = plainGiverName.isEmpty()
+                ? "\u00A1Hola!" : "\u00A1Hola, " + plainGiverName + "!";
+
+        StringBuilder details = new StringBuilder();
+        if (!safeGameName.isEmpty()) {
+            details.append(detailRow("Partida", safeGameName));
+        }
+        details.append(detailRow("Lista de deseos", safeWishList));
+        if (price != null) {
+            details.append(detailRow("Presupuesto m\u00E1ximo", price));
+        }
+        if (exchangeDate != null) {
+            details.append(detailRow("Fecha del intercambio", exchangeDate));
+        }
+
+        String htmlContent = """
+                <!DOCTYPE html>
+                <html lang="es">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <meta name="color-scheme" content="light">
+                    <meta name="supported-color-schemes" content="light">
+                    <title>Tu amigo invisible</title>
+                </head>
+                <body style="margin:0;padding:0;background-color:#f4f1ec;">
+                    <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f4f1ec;">
+                        Ya tienes tu amigo invisible. Abre este correo para ver a qui\u00E9n regalas.
+                    </div>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f1ec;">
+                        <tr>
+                            <td align="center" style="padding:28px 12px;">
+                                <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #e4ded4;border-radius:14px;">
+                                    <tr>
+                                        <td bgcolor="#14492f" style="background-color:#14492f;border-radius:14px 14px 0 0;padding:30px 28px;">
+                                            <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#e9cb7b;">Secret Santa Organizer</p>
+                                            <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.3;font-weight:normal;color:#ffffff;">Tu amigo invisible</h1>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:30px 28px 22px 28px;font-family:Arial,Helvetica,sans-serif;">
+                                            <p style="margin:0 0 16px 0;font-size:17px;line-height:1.6;color:#1b2a22;">{{GREETING}}</p>
+                                            <p style="margin:0 0 20px 0;font-size:16px;line-height:1.6;color:#4a5a51;">El sorteo ya est\u00E1 hecho. Esta es tu asignaci\u00F3n:</p>
+                                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                <tr>
+                                                    <td style="background-color:#fdf4f2;border-left:4px solid #b83c38;border-radius:0 10px 10px 0;padding:18px 20px;">
+                                                        <p style="margin:0 0 6px 0;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#8a4a45;font-family:Arial,Helvetica,sans-serif;">Tu persona asignada</p>
+                                                        <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:1.35;font-weight:bold;color:#b83c38;">{{RECEIVER}}</p>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                    {{DETAILS}}
+                                    <tr>
+                                        <td style="padding:8px 28px 0 28px;font-family:Arial,Helvetica,sans-serif;">
+                                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                <tr>
+                                                    <td style="background-color:#fbf6e9;border-left:4px solid #e9cb7b;border-radius:0 10px 10px 0;padding:16px 20px;">
+                                                        <p style="margin:0 0 8px 0;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#8a7333;font-family:Arial,Helvetica,sans-serif;">Tres consejos</p>
+                                                        <p style="margin:0;font-size:15px;line-height:1.7;color:#4a4a3a;font-family:Arial,Helvetica,sans-serif;">
+                                                            S\u00E9 creativo con el regalo.<br>
+                                                            Lo importante es el detalle.<br>
+                                                            Mant\u00E9n el secreto: es parte de la gracia.
+                                                        </p>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:28px 28px 30px 28px;font-family:Arial,Helvetica,sans-serif;">
+                                            <p style="margin:0 0 10px 0;font-size:13px;line-height:1.6;color:#5b6b62;">Guarda este correo: es tu \u00FAnica copia de la asignaci\u00F3n. Si algo no cuadra, contacta con quien organiza el juego.</p>
+                                            <p style="margin:0;font-size:12px;color:#8b9a92;">Secret Santa Organizer</p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
+                """.replace("{{GREETING}}", greeting)
+                .replace("{{RECEIVER}}", safeReceiverName)
+                .replace("{{DETAILS}}", details);
+
+        StringBuilder text = new StringBuilder();
+        text.append(plainGreeting).append("\n\n");
+        if (plainGameName.isEmpty()) {
+            text.append("El sorteo ya est\u00E1 hecho.\n\n");
+        } else {
+            text.append("El sorteo de \"").append(plainGameName).append("\" ya est\u00E1 hecho.\n\n");
+        }
+        text.append("TU PERSONA ASIGNADA\n").append(plainReceiverName).append("\n\n");
+        text.append("LISTA DE DESEOS\n").append(wishList).append("\n\n");
+        if (price != null) {
+            text.append("PRESUPUESTO M\u00C1XIMO\n").append(price).append("\n\n");
+        }
+        if (exchangeDate != null) {
+            text.append("FECHA DEL INTERCAMBIO\n").append(exchangeDate).append("\n\n");
+        }
+        text.append("""
+                TRES CONSEJOS
+                - S\u00E9 creativo con el regalo.
+                - Lo importante es el detalle.
+                - Mant\u00E9n el secreto: es parte de la gracia.
+
+                Guarda este correo: es tu \u00FAnica copia de la asignaci\u00F3n.
+                Secret Santa Organizer
+                """);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("sender", Map.of(
@@ -316,12 +243,38 @@ public class EmailService {
         payload.put("to", List.of(Map.of(
                 "email", giver.getEmail() == null ? "" : giver.getEmail(),
                 "name", singleLine(giver.getName()))));
-        payload.put("subject", "🎁 ¡Tu amigo invisible ha sido asignado!");
+        payload.put("subject", "\uD83C\uDF81 \u00A1Tu amigo invisible ha sido asignado!");
         payload.put("htmlContent", htmlContent);
-        payload.put("textContent", textContent);
+        payload.put("textContent", text.toString());
 
         // Jackson handles JSON escaping, preventing broken payloads or injection.
         return objectMapper.writeValueAsString(payload);
+    }
+
+    private static String detailRow(String label, String valueHtml) {
+        return """
+                <tr>
+                    <td style="padding:0 28px 12px 28px;font-family:Arial,Helvetica,sans-serif;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td style="background-color:#f6f7f5;border-radius:10px;padding:14px 16px;">
+                                    <p style="margin:0 0 4px 0;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#5b6b62;">{{LABEL}}</p>
+                                    <p style="margin:0;font-size:16px;line-height:1.6;color:#1b2a22;">{{VALUE}}</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                """.replace("{{LABEL}}", label).replace("{{VALUE}}", valueHtml);
+    }
+
+    private static String escapeMultiline(String value) {
+        String normalized = value.replace("\r\n", "\n").replace('\r', '\n');
+        return HtmlUtils.htmlEscape(normalized).replace("\n", "<br>");
+    }
+
+    private static String truncate(String value, int maxLength) {
+        return value.length() <= maxLength ? value : value.substring(0, maxLength) + "...";
     }
 
     private static String singleLine(String value) {
