@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface ParticipantRepository extends JpaRepository<Participant, Long> {
     List<Participant> findByGameId(String gameId);
+
+    long countByGameId(String gameId);
 }
