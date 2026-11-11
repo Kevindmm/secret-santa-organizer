@@ -14,6 +14,7 @@
     Plus,
     Wallet
   } from 'lucide-svelte';
+  import { API_URL } from '$lib/config';
 
   let gameName = '';
   let maxPrice = 10;
@@ -21,7 +22,7 @@
   let loading = false;
   /** @type {string | null} */
   let error = null;
-  /** @type {{ gameId: string, joinUrl?: string } | null} */
+  /** @type {{ gameId: string } | null} */
   let successData = null;
 
   let copied = false;
@@ -41,8 +42,6 @@
   onDestroy(() => clearTimeout(copyTimer));
 
   async function createGame() {
-    const API_URL = 'https://secret-santa-organizerv3.onrender.com';
-
     if (!gameName.trim()) {
       error = 'Por favor ingresa un nombre para el juego';
       return;
@@ -63,8 +62,14 @@
       });
 
       if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`API Error (${response.status}): ${err}`);
+        if (response.status === 429) {
+          error = 'Has creado demasiados intercambios. Espera un poco antes de crear otro.';
+        } else if (response.status === 400) {
+          error = 'Revisa los datos del intercambio e inténtalo de nuevo.';
+        } else {
+          error = `No se pudo crear el intercambio (${response.status}).`;
+        }
+        return;
       }
 
       successData = await response.json();
