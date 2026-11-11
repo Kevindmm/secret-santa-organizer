@@ -31,13 +31,9 @@ public class GameController {
     @PostMapping
     public ResponseEntity<Map<String, String>> createGame(@Valid @RequestBody GameRequest request) {
         String gameId = gameService.createGame(request);
-        String joinUrl = "https://tudominio.com/join/" + gameId; //TODO actualizar linea con web real
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(Map.of(
-                        "gameId", gameId,
-                        "joinUrl", joinUrl
-                ));
+                .body(Map.of("gameId", gameId));
     }
 
     @PostMapping("/{gameId}/participants")

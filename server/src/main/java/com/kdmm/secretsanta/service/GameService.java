@@ -8,11 +8,13 @@ import com.kdmm.secretsanta.exception.AlreadyAssignedException;
 import com.kdmm.secretsanta.exception.DuplicateEmailException;
 import com.kdmm.secretsanta.exception.GameNotFoundException;
 import com.kdmm.secretsanta.exception.InsufficientParticipantsException;
+import com.kdmm.secretsanta.exception.ParticipantLimitException;
 import com.kdmm.secretsanta.exception.ParticipantNotFoundException;
 import com.kdmm.secretsanta.model.Game;
 import com.kdmm.secretsanta.model.Participant;
 import com.kdmm.secretsanta.repository.GameRepository;
 import com.kdmm.secretsanta.repository.ParticipantRepository;
+import com.kdmm.secretsanta.util.EmailMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,8 @@ import java.util.*;
 public class GameService {
 
     private static final Logger log = LoggerFactory.getLogger(GameService.class);
+    private static final int MAX_PARTICIPANTS = 100;
+    private static final int MIN_PARTICIPANTS = 3;
 
     private final GameRepository gameRepo;
     private final ParticipantRepository participantRepo;
@@ -59,43 +63,51 @@ public class GameService {
 
     @Transactional
     public void addParticipant(String gameId, ParticipantRequest request) {
-        log.info("Adding participant {} to game {}", request.email(), gameId);
+        String gameCode = normalizeGameCode(gameId);
+        String email = normalizeEmail(request.email());
+        log.info("Adding participant {} to game {}", EmailMasker.mask(email), gameCode);
 
-        Game game = gameRepo.findById(gameId)
-                .orElseThrow(() -> new GameNotFoundException(gameId));
+        Game game = gameRepo.findById(gameCode)
+                .orElseThrow(() -> new GameNotFoundException(gameCode));
 
-        boolean emailExists = participantRepo.findByGameId(gameId).stream()
-                .anyMatch(p -> p.getEmail().equalsIgnoreCase(request.email()));
+        List<Participant> existing = participantRepo.findByGameId(gameCode);
+        if (existing.size() >= MAX_PARTICIPANTS) {
+            throw new ParticipantLimitException(MAX_PARTICIPANTS);
+        }
+
+        boolean emailExists = existing.stream()
+                .anyMatch(p -> p.getEmail() != null && p.getEmail().equalsIgnoreCase(email));
 
         if (emailExists) {
-            throw new DuplicateEmailException(request.email(), gameId);
+            throw new DuplicateEmailException(email, gameCode);
         }
 
         Participant participant = new Participant();
-        participant.setName(request.name());
-        participant.setEmail(request.email());
-        participant.setWishList(request.wishList());
+        participant.setName(request.name().trim());
+        participant.setEmail(email);
+        participant.setWishList(normalizeWishList(request.wishList()));
         participant.setGame(game);
         participant.setEmailSent(false);
 
         participantRepo.save(participant);
-        log.debug("Participant added: {} to game {}", request.email(), gameId);
+        log.debug("Participant added: {} to game {}", EmailMasker.mask(email), gameCode);
     }
 
     @Transactional
     public void assignSecretSantas(String gameId) {
-        log.info("Assigning Secret Santas for game: {}", gameId);
+        String gameCode = normalizeGameCode(gameId);
+        log.info("Assigning Secret Santas for game: {}", gameCode);
 
-        Game game = gameRepo.findById(gameId)
-                .orElseThrow(() -> new GameNotFoundException(gameId));
+        Game game = gameRepo.findById(gameCode)
+                .orElseThrow(() -> new GameNotFoundException(gameCode));
 
         if (game.isAssignmentsDone()) {
-            throw new AlreadyAssignedException(gameId);
+            throw new AlreadyAssignedException(gameCode);
         }
 
-        List<Participant> participants = participantRepo.findByGameId(gameId);
-        if (participants.size() < 3) {
-            throw new InsufficientParticipantsException(participants.size(), 3);
+        List<Participant> participants = participantRepo.findByGameId(gameCode);
+        if (participants.size() < MIN_PARTICIPANTS) {
+            throw new InsufficientParticipantsException(participants.size(), MIN_PARTICIPANTS);
         }
 
         List<Participant> receivers = createValidReceiverAssignment(participants);
@@ -106,7 +118,7 @@ public class GameService {
         gameRepo.save(game);
 
         log.info("Secret Santas assigned for game: {}. Emails sent to {} participants",
-                gameId, participants.size());
+                gameCode, participants.size());
     }
 
     /**
@@ -164,33 +176,37 @@ public class GameService {
 
     @Transactional
     public void deleteParticipant(String gameId, Long participantId) {
-        log.info("Deleting participant {} from game {}", participantId, gameId);
+        String gameCode = normalizeGameCode(gameId);
+        log.info("Deleting participant {} from game {}", participantId, gameCode);
 
-        Game game = gameRepo.findById(gameId)
-                .orElseThrow(() -> new GameNotFoundException(gameId));
+        Game game = gameRepo.findById(gameCode)
+                .orElseThrow(() -> new GameNotFoundException(gameCode));
 
         // Once the draw is done, the assignment pairs must stay intact.
         if (game.isAssignmentsDone()) {
-            throw new AlreadyAssignedException(gameId);
+            throw new AlreadyAssignedException(gameCode);
         }
 
         Participant participant = participantRepo.findById(participantId)
                 .orElseThrow(() -> new ParticipantNotFoundException(participantId));
 
         // Prevent deleting a participant that belongs to a different game.
-        if (participant.getGame() == null || !gameId.equals(participant.getGame().getId())) {
+        if (participant.getGame() == null || !gameCode.equals(participant.getGame().getId())) {
             throw new ParticipantNotFoundException(participantId);
         }
 
         participantRepo.delete(participant);
-        log.debug("Participant {} deleted from game {}", participantId, gameId);
+        log.debug("Participant {} deleted from game {}", participantId, gameCode);
     }
 
+    @Transactional(readOnly = true)
     public List<ParticipantDTO> getParticipants(String gameCode) {
-        gameRepo.findById(gameCode.toUpperCase())
+        String normalizedCode = normalizeGameCode(gameCode);
+
+        gameRepo.findById(normalizedCode)
                 .orElseThrow(() -> new GameNotFoundException(gameCode));
 
-        List<Participant> participants = participantRepo.findByGameId(gameCode);
+        List<Participant> participants = participantRepo.findByGameId(normalizedCode);
 
         return participants.stream()
                 .map(p -> new ParticipantDTO(
@@ -200,6 +216,22 @@ public class GameService {
                         p.getAssignedToEmail() != null
                 ))
                 .toList();
+    }
+
+    private static String normalizeGameCode(String gameCode) {
+        return gameCode == null ? null : gameCode.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizeWishList(String wishList) {
+        if (wishList == null) {
+            return null;
+        }
+        String trimmed = wishList.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private String generateGameCode() {

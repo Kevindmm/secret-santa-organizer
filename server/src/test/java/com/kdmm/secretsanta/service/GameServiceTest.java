@@ -2,11 +2,13 @@ package com.kdmm.secretsanta.service;
 
 import com.kdmm.secretsanta.dto.GameRequest;
 import com.kdmm.secretsanta.dto.GameSummaryDTO;
+import com.kdmm.secretsanta.dto.ParticipantDTO;
 import com.kdmm.secretsanta.dto.ParticipantRequest;
 import com.kdmm.secretsanta.exception.AlreadyAssignedException;
 import com.kdmm.secretsanta.exception.DuplicateEmailException;
 import com.kdmm.secretsanta.exception.GameNotFoundException;
 import com.kdmm.secretsanta.exception.InsufficientParticipantsException;
+import com.kdmm.secretsanta.exception.ParticipantLimitException;
 import com.kdmm.secretsanta.exception.ParticipantNotFoundException;
 import com.kdmm.secretsanta.model.Game;
 import com.kdmm.secretsanta.model.Participant;
@@ -20,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -219,6 +222,21 @@ class GameServiceTest {
         assertTrue(secondSummary.assignmentsDone());
     }
 
+    @Test
+    @DisplayName("getParticipants nunca devuelve el email completo")
+    void getParticipants_masksEmailAddresses() {
+        Game game = game(GAME_ID, false);
+        when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
+        when(participantRepo.findByGameId(GAME_ID))
+                .thenReturn(List.of(participant(1L, "ana@test.com")));
+
+        List<ParticipantDTO> participants = gameService.getParticipants("abc12345");
+
+        assertEquals(1, participants.size());
+        assertEquals("an***@test.com", participants.get(0).email());
+        assertNotEquals("ana@test.com", participants.get(0).email());
+    }
+
     // ---------------------------------------------------------------
     // Eliminar participante
     // ---------------------------------------------------------------
@@ -313,19 +331,20 @@ class GameServiceTest {
     }
 
     @Test
-    @DisplayName("Añadir un participante nuevo lo guarda asociado al juego")
+    @DisplayName("Añadir un participante normaliza email y espacios, y lo asocia al juego")
     void addParticipant_savesParticipantWithGame() {
         Game game = game(GAME_ID, false);
         when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
         when(participantRepo.findByGameId(GAME_ID)).thenReturn(List.of());
 
         ParticipantRequest request = new ParticipantRequest(
-                "Ana", "ana@test.com", "Un libro");
+                "  Ana  ", "  Ana@Test.COM  ", "  Un libro  ");
 
-        gameService.addParticipant(GAME_ID, request);
+        gameService.addParticipant(" abc12345 ", request);
 
         ArgumentCaptor<Participant> captor = ArgumentCaptor.forClass(Participant.class);
         verify(participantRepo).save(captor.capture());
+        verify(participantRepo).findByGameId(GAME_ID);
 
         Participant saved = captor.getValue();
         assertEquals("Ana", saved.getName());
@@ -333,6 +352,27 @@ class GameServiceTest {
         assertEquals("Un libro", saved.getWishList());
         assertEquals(game, saved.getGame());
         assertFalse(saved.isEmailSent());
+    }
+
+    @Test
+    @DisplayName("No se pueden añadir más de 100 participantes por juego")
+    void addParticipant_throwsWhenGameIsFull() {
+        Game game = game(GAME_ID, false);
+        List<Participant> full = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            full.add(participant(i, "p" + i + "@test.com"));
+        }
+
+        when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
+        when(participantRepo.findByGameId(GAME_ID)).thenReturn(full);
+
+        ParticipantRequest request = new ParticipantRequest(
+                "Ana", "ana@test.com", "Un libro");
+
+        assertThrows(ParticipantLimitException.class,
+                () -> gameService.addParticipant(GAME_ID, request));
+
+        verify(participantRepo, never()).save(any(Participant.class));
     }
 
     // ---------------------------------------------------------------
