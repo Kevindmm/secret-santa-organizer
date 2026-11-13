@@ -2,6 +2,7 @@ package com.kdmm.secretsanta.service;
 
 import jakarta.annotation.PostConstruct;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.kdmm.secretsanta.model.Game;
 import com.kdmm.secretsanta.model.Participant;
@@ -62,8 +63,10 @@ public class EmailService {
      */
     @PostConstruct
     void logConfiguration() {
+        log.info("Email provider: Brevo HTTP API ({})", BREVO_API_URL);
         if (unavailableReason == null) {
-            log.info("Email delivery enabled with sender: {}", EmailMasker.mask(fromAddress));
+            log.info("Email delivery enabled. sender={}, senderName='{}'",
+                    EmailMasker.mask(fromAddress), senderName);
         } else if (brevoApiKey == null) {
             log.info("Email delivery disabled: {}. Emails are simulated.", unavailableReason);
         } else {
@@ -111,7 +114,11 @@ public class EmailService {
             return CompletableFuture.completedFuture(false);
         }
 
-        log.info("Sending assignment email to: {}", maskedGiver);
+        String gameCode = game.getId() == null ? "unknown" : game.getId();
+        log.info("Sending assignment email: game={}, recipient={}, sender={}",
+                gameCode, maskedGiver, EmailMasker.mask(fromAddress));
+
+        long startedAt = System.nanoTime();
 
         try {
             String jsonBody = buildEmailJson(giver, receiver, game);
@@ -127,25 +134,56 @@ public class EmailService {
 
             return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenApply(response -> {
+                        long durationMs = elapsedMillis(startedAt);
                         if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                            log.info("Email sent successfully to: {}", maskedGiver);
+                            // Brevo answers with the id of the queued message, which
+                            // can be searched in the Brevo dashboard.
+                            log.info("Brevo accepted assignment email: game={}, recipient={}, "
+                                            + "httpStatus={}, messageId={}, durationMs={}",
+                                    gameCode, maskedGiver, response.statusCode(),
+                                    messageId(response.body()), durationMs);
                             return true;
                         }
                         // Never log the response body: it may contain recipient data.
-                        log.error("Failed to send email to {}: HTTP {}. {}",
-                                maskedGiver, response.statusCode(),
+                        log.error("Brevo rejected assignment email: game={}, recipient={}, "
+                                        + "httpStatus={}, durationMs={}. {}",
+                                gameCode, maskedGiver, response.statusCode(), durationMs,
                                 brevoHint(response.statusCode()));
                         return false;
                     })
                     .exceptionally(e -> {
-                        log.error("Error sending email to {}: {}", maskedGiver, e.getMessage());
+                        log.error("Assignment email failed: game={}, recipient={}, durationMs={}, error={}",
+                                gameCode, maskedGiver, elapsedMillis(startedAt), e.getMessage());
                         return false;
                     });
 
         } catch (Exception e) {
-            log.error("Failed to send email to {}: {}", maskedGiver, e.getMessage());
+            log.error("Assignment email could not be built or queued: game={}, recipient={}, "
+                            + "durationMs={}, error={}",
+                    gameCode, maskedGiver, elapsedMillis(startedAt), e.getMessage());
             return CompletableFuture.completedFuture(false);
         }
+    }
+
+    /**
+     * Reads the id of the queued message. Brevo returns {@code {"messageId":...}}.
+     * Only the id is used; the response body is never logged as a whole.
+     */
+    private String messageId(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return "unknown";
+        }
+        try {
+            JsonNode payload = objectMapper.readTree(responseBody);
+            JsonNode id = payload.get("messageId");
+            return id == null || id.isNull() ? "unknown" : id.asText();
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
+    private static long elapsedMillis(long startedAtNanos) {
+        return (System.nanoTime() - startedAtNanos) / 1_000_000;
     }
 
     private static String brevoHint(int statusCode) {

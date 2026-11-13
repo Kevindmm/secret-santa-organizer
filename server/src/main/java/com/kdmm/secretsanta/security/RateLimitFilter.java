@@ -4,6 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -19,6 +21,7 @@ import java.time.Duration;
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
+    private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
     private static final Duration CREATE_WINDOW = Duration.ofHours(1);
     private static final Duration JOIN_WINDOW = Duration.ofMinutes(1);
     private static final Duration ASSIGN_WINDOW = Duration.ofMinutes(1);
@@ -40,6 +43,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         this.createGamesPerHour = createGamesPerHour;
         this.joinPerMinute = joinPerMinute;
         this.assignPerMinute = assignPerMinute;
+        log.info("Rate limits: enabled={}, createGames={}/h, join={}/min, assign={}/min",
+                enabled, createGamesPerHour, joinPerMinute, assignPerMinute);
     }
 
     @Override
@@ -60,6 +65,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         String key = clientIp(request) + ":" + limit.name();
         if (!rateLimiter.tryAcquire(key, limit.maxRequests(), limit.window())) {
+            log.warn("Rate limit exceeded: rule={}, path={}, ip={}, maxRequests={}, windowSeconds={}",
+                    limit.name(), path, clientIp(request), limit.maxRequests(),
+                    limit.window().toSeconds());
             response.setStatus(429);
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");

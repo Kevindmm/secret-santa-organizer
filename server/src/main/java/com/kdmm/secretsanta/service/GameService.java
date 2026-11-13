@@ -63,6 +63,8 @@ public class GameService {
         game.setAssignmentsDone(false);
 
         gameRepo.save(game);
+        log.info("Game created: game={}, maxPrice={}, exchangeDate={}",
+                gameId, request.maxPrice(), request.exchangeDate());
         log.debug("Game created with ID: {}", gameId);
 
         return gameId;
@@ -103,19 +105,25 @@ public class GameService {
     @Transactional
     public AssignmentResult assignSecretSantas(String gameId) {
         String gameCode = normalizeGameCode(gameId);
+        long startedAt = System.nanoTime();
         log.info("Assigning Secret Santas for game: {}", gameCode);
 
         Game game = gameRepo.findById(gameCode)
                 .orElseThrow(() -> new GameNotFoundException(gameCode));
 
         if (game.isAssignmentsDone()) {
+            log.warn("Draw rejected: game {} was already drawn", gameCode);
             throw new AlreadyAssignedException(gameCode);
         }
 
         List<Participant> participants = participantRepo.findByGameId(gameCode);
         if (participants.size() < MIN_PARTICIPANTS) {
+            log.warn("Draw rejected: game {} has {} participants, at least {} are required",
+                    gameCode, participants.size(), MIN_PARTICIPANTS);
             throw new InsufficientParticipantsException(participants.size(), MIN_PARTICIPANTS);
         }
+
+        log.info("Draw started: game={}, participants={}", gameCode, participants.size());
 
         List<Participant> receivers = createValidReceiverAssignment(participants);
 
@@ -124,8 +132,9 @@ public class GameService {
         game.setAssignmentsDone(true);
         gameRepo.save(game);
 
-        log.info("Secret Santas assigned for game: {}. Assignment emails accepted by Brevo: {} of {}",
-                gameCode, emailsDispatched, participants.size());
+        log.info("Draw finished: game={}, participants={}, emailsAccepted={}, emailsFailed={}, durationMs={}",
+                gameCode, participants.size(), emailsDispatched,
+                participants.size() - emailsDispatched, elapsedMillis(startedAt));
 
         if (emailsDispatched < participants.size()) {
             log.warn("Some assignment emails could not be sent. Check MAIL_FROM and BREVO_API_KEY on the server.");
@@ -172,6 +181,12 @@ public class GameService {
             giver.setAssignedToEmail(receiver.getEmail());
             participantRepo.save(giver);
 
+            if (log.isDebugEnabled()) {
+                log.debug("Assignment pair: game={}, giver={}, receiver={}",
+                        game.getId(), EmailMasker.mask(giver.getEmail()),
+                        EmailMasker.mask(receiver.getEmail()));
+            }
+
             pending.add(emailService.sendAssignment(giver, receiver, game));
         }
 
@@ -209,7 +224,17 @@ public class GameService {
                 sent++;
             }
         }
+
+        long pendingCount = pending.stream().filter(delivery -> !delivery.isDone()).count();
+        if (pendingCount > 0) {
+            log.error("{} assignment emails were still pending when the draw finished", pendingCount);
+        }
+
         return sent;
+    }
+
+    private static long elapsedMillis(long startedAtNanos) {
+        return (System.nanoTime() - startedAtNanos) / 1_000_000;
     }
 
     @Transactional(readOnly = true)

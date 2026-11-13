@@ -29,11 +29,13 @@ public class GlobalExceptionHandler {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getFieldErrors().forEach(error ->
                 errors.put(error.getField(), error.getDefaultMessage()));
+        log.info("Request validation failed on fields: {}", errors.keySet());
         return ResponseEntity.badRequest().body(errors);
     }
 
     @ExceptionHandler({GameNotFoundException.class, ParticipantNotFoundException.class})
     public ResponseEntity<Map<String, String>> handleNotFoundException(RuntimeException ex) {
+        log.info("Request rejected, resource not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of("error", ex.getMessage()));
     }
@@ -41,6 +43,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({AlreadyAssignedException.class, DuplicateEmailException.class,
             ParticipantLimitException.class})
     public ResponseEntity<Map<String, String>> handleConflictException(RuntimeException ex) {
+        log.info("Request rejected, conflict: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("error", ex.getMessage()));
     }
@@ -48,6 +51,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InsufficientParticipantsException.class)
     public ResponseEntity<Map<String, String>> handleInsufficientParticipants(
             InsufficientParticipantsException ex) {
+        log.info("Request rejected, not enough participants: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("error", ex.getMessage()));
     }
@@ -58,6 +62,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Map<String, String>> handleNoResource(NoResourceFoundException ex) {
+        log.debug("Unknown path requested: {}", ex.getResourcePath());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of("error", "Recurso no encontrado."));
     }
