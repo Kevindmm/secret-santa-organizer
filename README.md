@@ -75,6 +75,7 @@ If `MAIL_FROM` or `BREVO_API_KEY` is missing, the application still starts and t
 | --- | --- | --- |
 | `MAIL_FROM` and `BREVO_API_KEY` set | `Email delivery enabled with sender: ...` | Real count accepted by Brevo |
 | `MAIL_FROM` empty, key set | `Email delivery misconfigured: MAIL_FROM is not set` | `emailsDispatched: 0` |
+| `BREVO_API_KEY` is an SMTP key | `Email delivery misconfigured: ... SMTP key ...` | `emailsDispatched: 0` |
 | No `BREVO_API_KEY` | `Email delivery disabled` and simulated emails | `emailsDispatched: 0` |
 
 ## API
@@ -190,7 +191,7 @@ This starts PostgreSQL and the Spring Boot API on `http://localhost:8080`. The f
 | `DB_POOL_MIN_IDLE` | `2` | Hikari minimum idle connections |
 | `MAIL_FROM` | empty | Verified sender address in Brevo |
 | `MAIL_FROM_NAME` | `Secret Santa Organizer` | Sender display name |
-| `BREVO_API_KEY` | empty | Brevo API key |
+| `BREVO_API_KEY` | empty | Brevo API v3 key (`xkeysib-...`) |
 | `RATE_LIMIT_ENABLED` | `true` | Enable or disable rate limiting |
 | `RATE_LIMIT_CREATE_GAMES` | `5` | Games per hour and IP |
 | `RATE_LIMIT_JOIN` | `10` | Joins per minute and IP |
@@ -198,6 +199,8 @@ This starts PostgreSQL and the Spring Boot API on `http://localhost:8080`. The f
 | `PUBLIC_API_URL` | Render URL | Frontend API base URL |
 
 Secrets such as `MAIL_FROM` and `BREVO_API_KEY` must be configured as environment variables in Render, not committed to the repository.
+
+`BREVO_API_KEY` must be an API v3 key, which starts with `xkeysib-`. The SMTP key (`xsmtpsib-`) is a different credential and is rejected by the HTTP API. The startup log reports the SMTP key mistake without printing the key.
 
 ## Deployment
 

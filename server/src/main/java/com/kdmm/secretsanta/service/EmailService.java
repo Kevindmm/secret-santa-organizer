@@ -79,6 +79,11 @@ public class EmailService {
         if (apiKey == null) {
             return "BREVO_API_KEY is not set";
         }
+        // SMTP keys are a different credential and are rejected by the HTTP API.
+        // Only the prefix is inspected; the key itself is never logged.
+        if (apiKey.startsWith("xsmtpsib-")) {
+            return "BREVO_API_KEY is a Brevo SMTP key; the HTTP API needs an API v3 key (xkeysib-)";
+        }
         if (sender == null) {
             return "MAIL_FROM is not set";
         }

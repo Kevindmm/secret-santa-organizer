@@ -139,6 +139,16 @@ class EmailServiceTest {
     }
 
     @Test
+    void sendAssignment_doesNotCallBrevoWhenApiKeyIsAnSmtpKey() {
+        EmailService smtpKey = new EmailService(
+                objectMapper, "xsmtpsib-not-an-api-key", "from@test.com", "Secret Santa");
+        Participant giver = participant(1L, "Ana", "ana@test.com");
+        Participant receiver = participant(2L, "Bruno", "bruno@test.com");
+
+        assertFalse(smtpKey.sendAssignment(giver, receiver, new Game("ABC12345")).join());
+    }
+
+    @Test
     void sendAssignment_doesNotCallBrevoWhenRecipientIsInvalid() {
         Participant giver = participant(1L, "Ana", "not-an-email");
         Participant receiver = participant(2L, "Bruno", "bruno@test.com");
