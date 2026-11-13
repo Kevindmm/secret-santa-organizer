@@ -1,5 +1,6 @@
 package com.kdmm.secretsanta.service;
 
+import jakarta.annotation.PostConstruct;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import com.kdmm.secretsanta.model.Game;
@@ -21,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class EmailService {
@@ -35,34 +37,78 @@ public class EmailService {
     private final String brevoApiKey;
     private final String fromAddress;
     private final String senderName;
+    /** Human-readable reason why emails cannot be sent, or {@code null} when configured. */
+    private final String unavailableReason;
 
     public EmailService(ObjectMapper objectMapper,
                         @Value("${brevo.api.key:}") String brevoApiKey,
                         @Value("${app.email.sender:}") String fromAddress,
                         @Value("${app.email.sender-name:Secret Santa Organizer}") String senderName) {
         this.objectMapper = objectMapper;
-        this.brevoApiKey = brevoApiKey;
-        this.fromAddress = fromAddress;
-        this.senderName = senderName;
+        this.brevoApiKey = trimToNull(brevoApiKey);
+        this.fromAddress = trimToNull(fromAddress);
+        this.senderName = trimToNull(senderName) == null ? "Secret Santa Organizer" : senderName.trim();
+        this.unavailableReason = resolveUnavailableReason(this.brevoApiKey, this.fromAddress);
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
     }
 
-    public void sendAssignment(Participant giver, Participant receiver, Game game) {
+    /**
+     * Logs the email configuration once at startup. A missing MAIL_FROM with a
+     * working API key is a deployment error and must be visible in the logs
+     * before a draw is attempted.
+     */
+    @PostConstruct
+    void logConfiguration() {
+        if (unavailableReason == null) {
+            log.info("Email delivery enabled with sender: {}", EmailMasker.mask(fromAddress));
+        } else if (brevoApiKey == null) {
+            log.info("Email delivery disabled: {}. Emails are simulated.", unavailableReason);
+        } else {
+            log.error("Email delivery misconfigured: {}. Assignment emails will not be sent.",
+                    unavailableReason);
+        }
+    }
+
+    private static String resolveUnavailableReason(String apiKey, String sender) {
+        if (apiKey == null) {
+            return "BREVO_API_KEY is not set";
+        }
+        if (sender == null) {
+            return "MAIL_FROM is not set";
+        }
+        if (!isValidEmail(sender)) {
+            return "MAIL_FROM is not a valid email address";
+        }
+        return null;
+    }
+
+    /**
+     * Sends the assignment to the giver.
+     *
+     * @return a future that completes with {@code true} when Brevo accepted the
+     *         message and {@code false} when it was skipped or rejected. Skipped
+     *         cases complete immediately, so callers can collect every request
+     *         and report the real outcome instead of assuming success.
+     */
+    public CompletableFuture<Boolean> sendAssignment(Participant giver, Participant receiver, Game game) {
         String maskedGiver = EmailMasker.mask(giver.getEmail());
 
-        if (brevoApiKey == null || brevoApiKey.isBlank()) {
-            log.info("Email service disabled. No API key configured.");
-            log.info("SIMULATED EMAIL To: {}, Giver: {}, Receiver: {}",
-                    maskedGiver, giver.getName(), receiver.getName());
-            return;
+        if (unavailableReason != null) {
+            if (brevoApiKey == null) {
+                log.info("SIMULATED EMAIL To: {}, Giver: {}, Receiver: {}",
+                        maskedGiver, giver.getName(), receiver.getName());
+            } else {
+                log.warn("Assignment email not sent to {}: {}", maskedGiver, unavailableReason);
+            }
+            return CompletableFuture.completedFuture(false);
         }
 
-        if (!isValidEmail(giver.getEmail()) || fromAddress == null || fromAddress.isBlank()) {
-            log.error("Skipping assignment email: missing recipient or sender address.");
-            return;
+        if (!isValidEmail(giver.getEmail())) {
+            log.error("Skipping assignment email: invalid recipient address for {}.", maskedGiver);
+            return CompletableFuture.completedFuture(false);
         }
 
         log.info("Sending assignment email to: {}", maskedGiver);
@@ -79,24 +125,36 @@ public class EmailService {
                     .timeout(Duration.ofSeconds(30))
                     .build();
 
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> {
+            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenApply(response -> {
                         if (response.statusCode() >= 200 && response.statusCode() < 300) {
                             log.info("Email sent successfully to: {}", maskedGiver);
-                        } else {
-                            // Never log the response body: it may contain recipient data.
-                            log.error("Failed to send email to {}: HTTP {}",
-                                    maskedGiver, response.statusCode());
+                            return true;
                         }
+                        // Never log the response body: it may contain recipient data.
+                        log.error("Failed to send email to {}: HTTP {}. {}",
+                                maskedGiver, response.statusCode(),
+                                brevoHint(response.statusCode()));
+                        return false;
                     })
                     .exceptionally(e -> {
                         log.error("Error sending email to {}: {}", maskedGiver, e.getMessage());
-                        return null;
+                        return false;
                     });
 
         } catch (Exception e) {
             log.error("Failed to send email to {}: {}", maskedGiver, e.getMessage());
+            return CompletableFuture.completedFuture(false);
         }
+    }
+
+    private static String brevoHint(int statusCode) {
+        return switch (statusCode) {
+            case 400 -> "Check that MAIL_FROM is a verified sender in Brevo.";
+            case 401, 403 -> "Check that BREVO_API_KEY is a valid v3 API key.";
+            case 429 -> "Brevo rate limit reached.";
+            default -> "Unexpected response from Brevo.";
+        };
     }
 
     // Package-private so the payload (escaping) can be unit tested.
@@ -284,6 +342,14 @@ public class EmailService {
 
     private static String singleLine(String value) {
         return value == null ? "" : value.replaceAll("[\\r\\n]+", " ").trim();
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private static boolean isValidEmail(String email) {

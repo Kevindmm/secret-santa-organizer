@@ -66,10 +66,16 @@ Once the draw is done, the game is marked as assigned and participants can no lo
 - Logs use masked addresses.
 - User-provided names and wishlists are HTML-escaped before being inserted into the email.
 - The Brevo payload is built with Jackson, so quotes or line breaks cannot break the JSON.
-- Emails are sent asynchronously through an HTTPS request; the API key is never logged.
+- Emails are sent in parallel through HTTPS requests; the API key is never logged.
 - Rate limits and a maximum of 100 participants per game reduce abuse of the email flow.
 
-If `MAIL_FROM` or `BREVO_API_KEY` is missing, the application still starts and the draw still works, but emails are skipped and a warning is logged.
+If `MAIL_FROM` or `BREVO_API_KEY` is missing, the application still starts and the draw still works, but no email is sent. The problem is logged at startup and the draw response reports how many messages the mail provider accepted, so the UI never claims delivery when nothing was sent.
+
+| Startup state | Log | Draw response |
+| --- | --- | --- |
+| `MAIL_FROM` and `BREVO_API_KEY` set | `Email delivery enabled with sender: ...` | Real count accepted by Brevo |
+| `MAIL_FROM` empty, key set | `Email delivery misconfigured: MAIL_FROM is not set` | `emailsDispatched: 0` |
+| No `BREVO_API_KEY` | `Email delivery disabled` and simulated emails | `emailsDispatched: 0` |
 
 ## API
 
@@ -79,7 +85,7 @@ If `MAIL_FROM` or `BREVO_API_KEY` is missing, the application still starts and t
 | `POST` | `/api/games` | Create a game and return its share code |
 | `POST` | `/api/games/{gameId}/participants` | Add a participant to a game |
 | `GET` | `/api/games/{gameCode}/participants` | List participants with masked emails |
-| `POST` | `/api/games/{gameId}/assign` | Run the draw and send the emails |
+| `POST` | `/api/games/{gameId}/assign` | Run the draw and return how many emails Brevo accepted (`emailsDispatched`) out of `participants` |
 | `DELETE` | `/api/games/{gameId}/participants/{participantId}` | Remove a participant before the draw |
 
 Game codes are 8 characters, uppercase. Requests and responses use JSON.

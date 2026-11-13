@@ -1,5 +1,6 @@
 package com.kdmm.secretsanta.controller;
 
+import com.kdmm.secretsanta.dto.AssignmentResult;
 import com.kdmm.secretsanta.dto.GameRequest;
 import com.kdmm.secretsanta.dto.GameSummaryDTO;
 import com.kdmm.secretsanta.dto.ParticipantDTO;
@@ -45,9 +46,8 @@ public class GameController {
     }
 
     @PostMapping("/{gameId}/assign")
-    public ResponseEntity<Void> assignSecretSantas(@PathVariable String gameId) {
-        gameService.assignSecretSantas(gameId);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<AssignmentResult> assignSecretSantas(@PathVariable String gameId) {
+        return ResponseEntity.ok(gameService.assignSecretSantas(gameId));
     }
 
     @GetMapping("/{gameCode}/participants")

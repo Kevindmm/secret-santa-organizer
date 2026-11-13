@@ -1,5 +1,6 @@
 package com.kdmm.secretsanta.service;
 
+import com.kdmm.secretsanta.dto.AssignmentResult;
 import com.kdmm.secretsanta.dto.GameRequest;
 import com.kdmm.secretsanta.dto.GameSummaryDTO;
 import com.kdmm.secretsanta.dto.ParticipantDTO;
@@ -27,6 +28,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -81,6 +83,8 @@ class GameServiceTest {
 
         when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
         when(participantRepo.findByGameId(GAME_ID)).thenReturn(participants);
+        when(emailService.sendAssignment(any(Participant.class), any(Participant.class), eq(game)))
+                .thenReturn(CompletableFuture.completedFuture(true));
 
         gameService.assignSecretSantas(GAME_ID);
 
@@ -115,6 +119,8 @@ class GameServiceTest {
 
         when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
         when(participantRepo.findByGameId(GAME_ID)).thenReturn(participants);
+        when(emailService.sendAssignment(any(Participant.class), any(Participant.class), eq(game)))
+                .thenReturn(CompletableFuture.completedFuture(true));
 
         gameService.assignSecretSantas(GAME_ID);
 
@@ -126,6 +132,49 @@ class GameServiceTest {
         for (Participant giver : participants) {
             assertNotEquals(giver.getEmail(), giver.getAssignedToEmail());
         }
+    }
+
+    @Test
+    @DisplayName("El resultado del sorteo informa de los emails entregados a Brevo")
+    void assignSecretSantas_reportsDispatchedEmails() {
+        Game game = game(GAME_ID, false);
+        List<Participant> participants = List.of(
+                participant(1L, "ana@test.com"),
+                participant(2L, "bruno@test.com"),
+                participant(3L, "carla@test.com")
+        );
+
+        when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
+        when(participantRepo.findByGameId(GAME_ID)).thenReturn(participants);
+        when(emailService.sendAssignment(any(Participant.class), any(Participant.class), eq(game)))
+                .thenReturn(CompletableFuture.completedFuture(true));
+
+        AssignmentResult result = gameService.assignSecretSantas(GAME_ID);
+
+        assertEquals(3, result.emailsDispatched());
+        assertEquals(3, result.participants());
+    }
+
+    @Test
+    @DisplayName("Si no se puede enviar ningún email, el resultado no lo oculta")
+    void assignSecretSantas_reportsWhenNoEmailWasDispatched() {
+        Game game = game(GAME_ID, false);
+        List<Participant> participants = List.of(
+                participant(1L, "ana@test.com"),
+                participant(2L, "bruno@test.com"),
+                participant(3L, "carla@test.com")
+        );
+
+        when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
+        when(participantRepo.findByGameId(GAME_ID)).thenReturn(participants);
+        when(emailService.sendAssignment(any(Participant.class), any(Participant.class), eq(game)))
+                .thenReturn(CompletableFuture.completedFuture(false));
+
+        AssignmentResult result = gameService.assignSecretSantas(GAME_ID);
+
+        assertEquals(0, result.emailsDispatched());
+        assertEquals(3, result.participants());
+        assertTrue(game.isAssignmentsDone(), "El sorteo se guarda aunque falle el correo");
     }
 
     @Test

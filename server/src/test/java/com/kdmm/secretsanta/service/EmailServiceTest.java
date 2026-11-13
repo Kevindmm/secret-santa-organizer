@@ -128,6 +128,38 @@ class EmailServiceTest {
         assertTrue(html.contains("24 de diciembre de 2027"));
     }
 
+    @Test
+    void sendAssignment_doesNotCallBrevoWhenSenderIsMissing() {
+        EmailService withoutSender =
+                new EmailService(objectMapper, "test-api-key", "   ", "Secret Santa");
+        Participant giver = participant(1L, "Ana", "ana@test.com");
+        Participant receiver = participant(2L, "Bruno", "bruno@test.com");
+
+        assertFalse(withoutSender.sendAssignment(giver, receiver, new Game("ABC12345")).join());
+    }
+
+    @Test
+    void sendAssignment_doesNotCallBrevoWhenRecipientIsInvalid() {
+        Participant giver = participant(1L, "Ana", "not-an-email");
+        Participant receiver = participant(2L, "Bruno", "bruno@test.com");
+
+        assertFalse(emailService.sendAssignment(giver, receiver, new Game("ABC12345")).join());
+    }
+
+    @Test
+    void buildEmailJson_trimsTheSenderAddress() throws Exception {
+        EmailService paddedSender =
+                new EmailService(objectMapper, "test-api-key", "  from@test.com \n", "Secret Santa");
+
+        Participant giver = participant(1L, "Ana", "ana@test.com");
+        Participant receiver = participant(2L, "Bruno", "bruno@test.com");
+
+        JsonNode payload = objectMapper.readTree(
+                paddedSender.buildEmailJson(giver, receiver, new Game("ABC12345")));
+
+        assertEquals("from@test.com", payload.path("sender").path("email").asText());
+    }
+
     private static Participant participant(long id, String name, String email) {
         Participant participant = new Participant();
         participant.setId(id);

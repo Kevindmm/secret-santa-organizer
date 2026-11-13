@@ -1,5 +1,6 @@
 package com.kdmm.secretsanta.service;
 
+import com.kdmm.secretsanta.dto.AssignmentResult;
 import com.kdmm.secretsanta.dto.GameRequest;
 import com.kdmm.secretsanta.dto.GameSummaryDTO;
 import com.kdmm.secretsanta.dto.ParticipantDTO;
@@ -22,6 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 public class GameService {
@@ -29,6 +34,8 @@ public class GameService {
     private static final Logger log = LoggerFactory.getLogger(GameService.class);
     private static final int MAX_PARTICIPANTS = 100;
     private static final int MIN_PARTICIPANTS = 3;
+    /** Upper bound for waiting on the mail provider before answering the request. */
+    private static final int EMAIL_WAIT_SECONDS = 20;
 
     private final GameRepository gameRepo;
     private final ParticipantRepository participantRepo;
@@ -94,7 +101,7 @@ public class GameService {
     }
 
     @Transactional
-    public void assignSecretSantas(String gameId) {
+    public AssignmentResult assignSecretSantas(String gameId) {
         String gameCode = normalizeGameCode(gameId);
         log.info("Assigning Secret Santas for game: {}", gameCode);
 
@@ -112,13 +119,19 @@ public class GameService {
 
         List<Participant> receivers = createValidReceiverAssignment(participants);
 
-        executeSecretSantaAssignments(participants, receivers, game);
+        int emailsDispatched = executeSecretSantaAssignments(participants, receivers, game);
 
         game.setAssignmentsDone(true);
         gameRepo.save(game);
 
-        log.info("Secret Santas assigned for game: {}. Emails sent to {} participants",
-                gameCode, participants.size());
+        log.info("Secret Santas assigned for game: {}. Assignment emails accepted by Brevo: {} of {}",
+                gameCode, emailsDispatched, participants.size());
+
+        if (emailsDispatched < participants.size()) {
+            log.warn("Some assignment emails could not be sent. Check MAIL_FROM and BREVO_API_KEY on the server.");
+        }
+
+        return new AssignmentResult(emailsDispatched, participants.size());
     }
 
     /**
@@ -147,9 +160,11 @@ public class GameService {
 
 
      // Executes the actual Secret Santa assignments and sends emails
-    private void executeSecretSantaAssignments(List<Participant> givers,
-                                               List<Participant> receivers,
-                                               Game game) {
+    private int executeSecretSantaAssignments(List<Participant> givers,
+                                              List<Participant> receivers,
+                                              Game game) {
+        List<CompletableFuture<Boolean>> pending = new ArrayList<>(givers.size());
+
         for (int i = 0; i < givers.size(); i++) {
             Participant giver = givers.get(i);
             Participant receiver = receivers.get(i);
@@ -157,8 +172,44 @@ public class GameService {
             giver.setAssignedToEmail(receiver.getEmail());
             participantRepo.save(giver);
 
-            emailService.sendAssignment(giver, receiver, game);
+            pending.add(emailService.sendAssignment(giver, receiver, game));
         }
+
+        return waitForDeliveries(pending);
+    }
+
+    /**
+     * Emails are sent in parallel, so the draw does not wait for each HTTP call
+     * in sequence. The wait is bounded: anything still pending after the
+     * deadline is reported as not sent instead of blocking the request.
+     */
+    private int waitForDeliveries(List<CompletableFuture<Boolean>> pending) {
+        if (pending.isEmpty()) {
+            return 0;
+        }
+
+        try {
+            CompletableFuture.allOf(pending.toArray(CompletableFuture[]::new))
+                    .get(EMAIL_WAIT_SECONDS, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            log.error("Timed out after {} s waiting for the mail provider.", EMAIL_WAIT_SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Interrupted while waiting for the mail provider.");
+        } catch (ExecutionException e) {
+            log.error("Unexpected error while waiting for the mail provider: {}", e.getMessage());
+        }
+
+        int sent = 0;
+        for (CompletableFuture<Boolean> delivery : pending) {
+            if (delivery.isDone()
+                    && !delivery.isCompletedExceptionally()
+                    && !delivery.isCancelled()
+                    && Boolean.TRUE.equals(delivery.getNow(false))) {
+                sent++;
+            }
+        }
+        return sent;
     }
 
     @Transactional(readOnly = true)
