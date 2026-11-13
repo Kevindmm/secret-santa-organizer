@@ -29,6 +29,13 @@
   /** @type {string | null} */
   let adminError = null;
   let adminSuccess = false;
+  /** 'unknown' when the server did not report delivery counts (older deploy). */
+  /** @type {'unknown' | 'all' | 'partial' | 'none'} */
+  let emailStatus = 'unknown';
+  /** Number of assignment emails the backend could actually hand to Brevo. */
+  let emailsDispatched = 0;
+  /** Number of participants in the game that was drawn. */
+  let emailRecipients = 0;
   /** @type {Participant[]} */
   let participants = [];
   let loadingParticipants = false;
@@ -105,6 +112,9 @@
 
     adminLoading = true;
     adminError = null;
+    emailStatus = 'unknown';
+    emailsDispatched = 0;
+    emailRecipients = 0;
 
     const gameCode = adminGameCode.toUpperCase();
 
@@ -127,6 +137,18 @@
           adminError = 'Error al asignar amigos secretos';
         }
         return;
+      }
+
+      const result = await response.json().catch(() => null);
+      if (result && Number.isFinite(result.emailsDispatched) && Number.isFinite(result.participants)) {
+        emailsDispatched = result.emailsDispatched;
+        emailRecipients = result.participants;
+        emailStatus =
+          emailsDispatched === emailRecipients
+            ? 'all'
+            : emailsDispatched > 0
+              ? 'partial'
+              : 'none';
       }
 
       adminSuccess = true;
@@ -246,14 +268,33 @@
             Cada participante ya tiene su amigo secreto asignado.
           </p>
 
-          <div class="mail-notice">
+          <div class="mail-notice" class:is-warning={emailStatus === 'partial' || emailStatus === 'none'}>
             <Mail size={19} aria-hidden="true" />
             <div>
-              <strong>Emails enviados</strong>
-              <span>
-                Los avisos automáticos se han enviado correctamente a todos los
-                participantes.
-              </span>
+              {#if emailStatus === 'partial'}
+                <strong>Emails enviados a {emailsDispatched} de {emailRecipients}</strong>
+                <span>
+                  Algunos participantes no han recibido el aviso. Revisa la
+                  configuración de correo del servidor.
+                </span>
+              {:else if emailStatus === 'none'}
+                <strong>No se han enviado los emails</strong>
+                <span>
+                  El sorteo está hecho, pero el servidor no ha podido enviar los
+                  avisos. Revisa la configuración de correo antes de repetirlo.
+                </span>
+              {:else if emailStatus === 'all'}
+                <strong>Emails enviados</strong>
+                <span>
+                  Los avisos automáticos se han enviado correctamente a los
+                  {emailRecipients} participantes.
+                </span>
+              {:else}
+                <strong>Emails enviados</strong>
+                <span>
+                  Los avisos automáticos se envían a cada participante por correo.
+                </span>
+              {/if}
             </div>
           </div>
 
@@ -829,6 +870,19 @@
     color: var(--text-soft);
     font-size: 0.78rem;
     line-height: 1.45;
+  }
+
+  .mail-notice.is-warning {
+    background: rgba(240, 122, 116, 0.08);
+    border-color: rgba(240, 122, 116, 0.26);
+  }
+
+  .mail-notice.is-warning > :global(svg) {
+    color: var(--danger);
+  }
+
+  .mail-notice.is-warning strong {
+    color: #ffc9c5;
   }
 
   .sheet-progress {
