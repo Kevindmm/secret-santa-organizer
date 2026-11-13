@@ -91,6 +91,13 @@
 </div>
 
 <style>
+  /* Pause the ambient animation while a modal is open: it is hidden behind
+     the scrim anyway and repainting it on every frame makes the sheet
+     stutter on phones. */
+  :global(html.modal-open) .snowflake {
+    animation-play-state: paused;
+  }
+
   .christmas-layout {
     position: relative;
     isolation: isolate;

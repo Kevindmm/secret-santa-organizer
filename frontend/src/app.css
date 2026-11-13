@@ -67,6 +67,8 @@ html {
   background: var(--bg);
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  /* Keep the layout width stable when the scroll lock hides the scrollbar. */
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -454,6 +456,16 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
   animation: spin 0.7s linear infinite;
 }
 
+/*
+ * Scroll lock while a modal is open. Locking both html and body stops the
+ * page behind the sheet from rubber-banding on iOS.
+ */
+html.modal-open,
+html.modal-open body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 /* Bottom sheet -------------------------------------------- */
 
 .sheet-backdrop {
@@ -467,22 +479,33 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
   background: rgba(3, 9, 6, 0.68);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  animation: fade-in 0.2s ease both;
+  overscroll-behavior: none;
+  /* `backwards` drops the animation styles once it ends, so no leftover
+     compositing layer interferes with scrolling. */
+  animation: fade-in 0.2s ease backwards;
 }
 
 .sheet {
   width: 100%;
   max-width: 560px;
-  max-height: 92dvh;
+  /* `svh` is the small viewport height and does not change when the mobile
+     browser hides or shows its bars. With `dvh` the sheet resized while
+     scrolling, which looked like the content was jumping. */
+  max-height: 92vh;
+  max-height: 92svh;
   padding: 1.1rem 1.25rem calc(1.25rem + var(--safe-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* The sheet becomes scrollable when the participant list loads. Reserving
+     the gutter keeps the content from shifting sideways at that moment. */
+  scrollbar-gutter: stable;
   background: linear-gradient(180deg, #123123 0%, #0a1c13 100%);
   border: 1px solid var(--line);
   border-bottom: 0;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   box-shadow: 0 -24px 70px rgba(0, 0, 0, 0.55);
-  animation: sheet-up 0.32s var(--ease-out) both;
+  animation: sheet-up 0.32s var(--ease-out) backwards;
 }
 
 .sheet-handle {
@@ -493,6 +516,19 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
   border-radius: 999px;
 }
 
+/*
+ * The blurred backdrop has to repaint the animated snow on every scroll
+ * frame, which stutters on phones. A flat scrim is cheaper and hides the
+ * page just as well.
+ */
+@media (max-width: 639px) {
+  .sheet-backdrop {
+    background: rgba(3, 9, 6, 0.84);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 @media (min-width: 640px) {
   .sheet-backdrop {
     align-items: center;
@@ -500,7 +536,7 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
   }
 
   .sheet {
-    max-height: 88dvh;
+    max-height: 88svh;
     padding-bottom: 1.5rem;
     border-bottom: 1px solid var(--line);
     border-radius: var(--radius-xl);

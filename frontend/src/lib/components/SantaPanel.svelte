@@ -201,8 +201,10 @@
     };
   }
 
-  // Prevent the background from scrolling while the sheet is open.
+  // Lock the page behind the sheet. The class on <html> also pauses the
+  // ambient snow animation while the panel is open.
   $: if (typeof document !== 'undefined') {
+    document.documentElement.classList.toggle('modal-open', showAdminPanel);
     document.body.style.overflow = showAdminPanel ? 'hidden' : '';
   }
 
@@ -210,6 +212,7 @@
     participantsController?.abort();
     clearTimeout(closeTimer);
     if (typeof document !== 'undefined') {
+      document.documentElement.classList.remove('modal-open');
       document.body.style.overflow = '';
     }
   });
