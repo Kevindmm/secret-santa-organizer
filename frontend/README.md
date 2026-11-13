@@ -1,38 +1,22 @@
-# sv
+# Secret Santa Organizer · Frontend
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+SvelteKit single-page app for the Secret Santa Organizer. The full documentation, including how to run the backend and the database locally, is in the [root README](../README.md).
 
-## Creating a project
+## Local development
 
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project in the current directory
-npx sv create
-
-# create a new project in my-app
-npx sv create my-app
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
+```bash
+npm install
+cp .env.example .env
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
+`PUBLIC_API_URL` in `.env` must point to the Spring Boot API, usually `http://localhost:8080`. Without it, the app calls the deployed backend.
 
-To create a production version of your app:
+The app runs at `http://localhost:5173`.
 
-```sh
+## Checks
+
+```bash
+npm run check
 npm run build
 ```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
