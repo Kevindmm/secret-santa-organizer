@@ -248,49 +248,99 @@ public class EmailService {
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <meta name="x-apple-disable-message-reformatting">
                     <meta name="color-scheme" content="light">
                     <meta name="supported-color-schemes" content="light">
                     <title>Tu amigo invisible</title>
+                    <style>
+                        @media only screen and (max-width: 620px) {
+                            .wrap { padding: 16px 10px 26px 10px !important; }
+                            .px { padding-left: 20px !important; padding-right: 20px !important; }
+                            .tag { padding: 20px 18px !important; }
+                            .title { font-size: 26px !important; }
+                            .name { font-size: 27px !important; }
+                            .header { padding: 30px 20px 28px 20px !important; }
+                        }
+                    </style>
                 </head>
-                <body style="margin:0;padding:0;background-color:#f4f1ec;">
-                    <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f4f1ec;">
+                <body style="margin:0;padding:0;background-color:#f3eee4;">
+                    <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f3eee4;">
                         Ya tienes tu amigo invisible. Abre este correo para ver a qui\u00E9n regalas.
                     </div>
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f1ec;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3eee4;">
                         <tr>
-                            <td align="center" style="padding:28px 12px;">
-                                <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #e4ded4;border-radius:14px;">
+                            <td align="center" class="wrap" style="padding:32px 12px 38px 12px;">
+                                <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#fffdf8;border:1px solid #e5dccb;border-radius:16px;overflow:hidden;">
                                     <tr>
-                                        <td bgcolor="#14492f" style="background-color:#14492f;border-radius:14px 14px 0 0;padding:30px 28px;">
-                                            <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#e9cb7b;">Secret Santa Organizer</p>
-                                            <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.3;font-weight:normal;color:#ffffff;">Tu amigo invisible{{YEAR}}</h1>
-                                        </td>
+                                        <td style="height:6px;background-color:#b83c38;background-image:linear-gradient(90deg,#b83c38 0%,#d9b96a 50%,#14492f 100%);font-size:0;line-height:0;">&nbsp;</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding:30px 28px 22px 28px;font-family:Arial,Helvetica,sans-serif;">
-                                            <p style="margin:0 0 16px 0;font-size:17px;line-height:1.6;color:#1b2a22;">{{GREETING}}</p>
-                                            <p style="margin:0 0 20px 0;font-size:16px;line-height:1.6;color:#4a5a51;">El sorteo ya est\u00E1 hecho. Esta es tu asignaci\u00F3n:</p>
+                                        <td class="header" bgcolor="#123f2a" style="background-color:#123f2a;background-image:linear-gradient(135deg,#123f2a 0%,#1c5c3d 100%);padding:36px 32px 34px 32px;">
                                             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                                                 <tr>
-                                                    <td style="background-color:#fdf4f2;border-left:4px solid #b83c38;border-radius:0 10px 10px 0;padding:18px 20px;">
-                                                        <p style="margin:0 0 6px 0;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#8a4a45;font-family:Arial,Helvetica,sans-serif;">Tu persona asignada</p>
-                                                        <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:1.35;font-weight:bold;color:#b83c38;">{{RECEIVER}}</p>
+                                                    <td style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;color:#e9cb7b;">Secret Santa Organizer</td>
+                                                    <td align="right" style="font-size:15px;letter-spacing:5px;color:#5c9077;">\u2744 \u2744 \u2744</td>
+                                                </tr>
+                                                <tr>
+                                                    <td colspan="2" class="title" style="padding-top:12px;font-family:Georgia,'Times New Roman',serif;font-size:32px;line-height:1.22;color:#ffffff;">Tu amigo invisible<span style="color:#e9cb7b;">{{YEAR}}</span></td>
+                                                </tr>
+                                                <tr>
+                                                    <td colspan="2" style="padding-top:20px;">
+                                                        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                                            <tr>
+                                                                <td width="38" style="font-size:0;line-height:0;">
+                                                                    <div style="width:34px;height:1px;background-color:#4f8266;font-size:0;line-height:0;">&#8203;</div>
+                                                                </td>
+                                                                <td style="padding-left:10px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1px;color:#a9c9b6;">El sorteo ya est\u00E1 hecho</td>
+                                                            </tr>
+                                                        </table>
                                                     </td>
                                                 </tr>
                                             </table>
                                         </td>
                                     </tr>
+                                    <tr>
+                                        <td class="px" style="padding:32px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;">
+                                            <p style="margin:0 0 10px 0;font-size:18px;line-height:1.5;font-weight:bold;color:#1b2a22;">{{GREETING}}</p>
+                                            <p style="margin:0 0 26px 0;font-size:15px;line-height:1.65;color:#5b6b62;">Ya tienes tu asignaci\u00F3n. Marca este correo como favorito: es tu \u00FAnica copia y lo necesitar\u00E1s el d\u00EDa del intercambio.</p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px" style="padding:0 32px;">
+                                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fff9ee;border:2px dashed #d9bd7c;border-radius:14px;">
+                                                <tr>
+                                                    <td class="tag" style="padding:24px 26px;">
+                                                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                            <tr>
+                                                                <td colspan="2" style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:2.5px;text-transform:uppercase;color:#a4584f;padding-bottom:10px;">Tu persona asignada</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="name" valign="middle" style="font-family:Georgia,'Times New Roman',serif;font-size:31px;line-height:1.25;font-weight:bold;color:#b83c38;">{{RECEIVER}}</td>
+                                                                <td valign="middle" align="right" width="52" style="font-size:28px;line-height:1;">\uD83C\uDF81</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td colspan="2" style="padding-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#8a6d3f;">Solo para tus ojos: guarda el secreto hasta el d\u00EDa del intercambio.</td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="height:26px;font-size:0;line-height:0;">&nbsp;</td>
+                                    </tr>
                                     {{DETAILS}}
                                     <tr>
-                                        <td style="padding:8px 28px 0 28px;font-family:Arial,Helvetica,sans-serif;">
-                                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                        <td class="px" style="padding:26px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;">
+                                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fbf5e4;border-left:4px solid #e0c179;border-radius:4px 12px 12px 4px;">
                                                 <tr>
-                                                    <td style="background-color:#fbf6e9;border-left:4px solid #e9cb7b;border-radius:0 10px 10px 0;padding:16px 20px;">
-                                                        <p style="margin:0 0 8px 0;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#8a7333;font-family:Arial,Helvetica,sans-serif;">Tres consejos</p>
-                                                        <p style="margin:0;font-size:15px;line-height:1.7;color:#4a4a3a;font-family:Arial,Helvetica,sans-serif;">
-                                                            S\u00E9 creativo con el regalo.<br>
-                                                            Lo importante es el detalle.<br>
-                                                            Mant\u00E9n el secreto: es parte de la gracia.
+                                                    <td style="padding:20px 22px;">
+                                                        <p style="margin:0 0 10px 0;font-size:10px;font-weight:bold;letter-spacing:2.5px;text-transform:uppercase;color:#93722f;">Tres consejos</p>
+                                                        <p style="margin:0;font-size:15px;line-height:1.9;color:#4a4a3a;">
+                                                            <span style="color:#c9a44f;">\u2726</span> S\u00E9 creativo con el regalo.<br>
+                                                            <span style="color:#c9a44f;">\u2726</span> Lo importante es el detalle.<br>
+                                                            <span style="color:#c9a44f;">\u2726</span> Mant\u00E9n el secreto: es parte de la gracia.
                                                         </p>
                                                     </td>
                                                 </tr>
@@ -298,12 +348,19 @@ public class EmailService {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style="padding:28px 28px 30px 28px;font-family:Arial,Helvetica,sans-serif;">
-                                            <p style="margin:0 0 10px 0;font-size:13px;line-height:1.6;color:#5b6b62;">Guarda este correo: es tu \u00FAnica copia de la asignaci\u00F3n. Si algo no cuadra, contacta con quien organiza el juego.</p>
-                                            <p style="margin:0;font-size:12px;color:#8b9a92;">Secret Santa Organizer</p>
+                                        <td class="px" style="padding:30px 32px 34px 32px;font-family:Arial,Helvetica,sans-serif;">
+                                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                <tr>
+                                                    <td style="border-top:1px solid #e8e0d2;padding-top:20px;">
+                                                        <p style="margin:0 0 12px 0;font-size:13px;line-height:1.65;color:#6b7f74;">Guarda este correo: es tu \u00FAnica copia de la asignaci\u00F3n. Si algo no cuadra, contacta con quien organiza el juego.</p>
+                                                        <p style="margin:0;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#9aa89f;">Secret Santa Organizer</p>
+                                                    </td>
+                                                </tr>
+                                            </table>
                                         </td>
                                     </tr>
                                 </table>
+                                <p style="margin:18px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.6;color:#7f9187;text-align:center;">Hecho con cari\u00F1o para que nadie se quede sin regalo.</p>
                             </td>
                         </tr>
                     </table>
@@ -317,11 +374,12 @@ public class EmailService {
         StringBuilder text = new StringBuilder();
         text.append(plainGreeting).append("\n\n");
         if (plainGameName.isEmpty()) {
-            text.append("El sorteo ya est\u00E1 hecho.\n\n");
+            text.append("El sorteo ya est\u00E1 hecho. Esta es tu asignaci\u00F3n:\n\n");
         } else {
-            text.append("El sorteo de \"").append(plainGameName).append("\" ya est\u00E1 hecho.\n\n");
+            text.append("\u00A1El sorteo de \"").append(plainGameName)
+                    .append("\" ya est\u00E1 hecho! Esta es tu asignaci\u00F3n:\n\n");
         }
-        text.append("TU PERSONA ASIGNADA\n").append(plainReceiverName).append("\n\n");
+        text.append("\u2726 TU PERSONA ASIGNADA\n").append(plainReceiverName).append("\n\n");
         text.append("LISTA DE DESEOS\n").append(wishList).append("\n\n");
         if (price != null) {
             text.append("PRESUPUESTO M\u00C1XIMO\n").append(price).append("\n\n");
@@ -331,9 +389,9 @@ public class EmailService {
         }
         text.append("""
                 TRES CONSEJOS
-                - S\u00E9 creativo con el regalo.
-                - Lo importante es el detalle.
-                - Mant\u00E9n el secreto: es parte de la gracia.
+                \u2726 S\u00E9 creativo con el regalo.
+                \u2726 Lo importante es el detalle.
+                \u2726 Mant\u00E9n el secreto: es parte de la gracia.
 
                 Guarda este correo: es tu \u00FAnica copia de la asignaci\u00F3n.
                 Secret Santa Organizer
@@ -360,12 +418,21 @@ public class EmailService {
     private static String detailRow(String label, String valueHtml) {
         return """
                 <tr>
-                    <td style="padding:0 28px 12px 28px;font-family:Arial,Helvetica,sans-serif;">
+                    <td class="px" style="padding:0 32px;">
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                             <tr>
-                                <td style="background-color:#f6f7f5;border-radius:10px;padding:14px 16px;">
-                                    <p style="margin:0 0 4px 0;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#5b6b62;">{{LABEL}}</p>
-                                    <p style="margin:0;font-size:16px;line-height:1.6;color:#1b2a22;">{{VALUE}}</p>
+                                <td style="padding:15px 0;border-bottom:1px solid #ece4d5;">
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                            <td width="18" valign="top" style="padding-top:7px;">
+                                                <div style="width:7px;height:7px;background-color:#d5b26a;border-radius:50%;font-size:0;line-height:0;">&nbsp;</div>
+                                            </td>
+                                            <td style="padding-left:6px;font-family:Arial,Helvetica,sans-serif;">
+                                                <p style="margin:0 0 4px 0;font-size:10px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#8b9b91;">{{LABEL}}</p>
+                                                <p style="margin:0;font-size:16px;line-height:1.6;color:#1b2a22;">{{VALUE}}</p>
+                                            </td>
+                                        </tr>
+                                    </table>
                                 </td>
                             </tr>
                         </table>

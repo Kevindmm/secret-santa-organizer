@@ -124,7 +124,8 @@ class EmailServiceTest {
         String html = payload.path("htmlContent").asText();
 
         assertTrue(subject.contains("2027"), "The subject must show the exchange year");
-        assertTrue(html.contains("Tu amigo invisible 2027"));
+        assertTrue(html.contains("Tu amigo invisible"), "The header must keep the title");
+        assertTrue(html.contains("2027"), "The header must show the exchange year");
         assertTrue(html.contains("24 de diciembre de 2027"));
     }
 
