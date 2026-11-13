@@ -17,7 +17,7 @@
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion) return;
 
-    // Nieve escasa y discreta: suficiente para dar ambiente, sin tapar el contenido.
+    // Sparse, subtle snow: enough for atmosphere without covering the content.
     snowflakes = Array.from({ length: 22 }, (_, i) => ({
       id: i,
       left: Math.random() * 100,

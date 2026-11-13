@@ -94,7 +94,7 @@
   // Format email for display (partially masked)
   /** @param {string | undefined} email */
   function formatEmail(email) {
-    // El backend ya devuelve el email enmascarado (ej. an***@dominio.com).
+    // The backend already returns the masked email (e.g. an***@domain.com).
     return email || '';
   }
 
@@ -187,8 +187,8 @@
   }
 
   /**
-   * El header tiene backdrop-filter, que crea un containing block para
-   * position: fixed. Movemos el modal al body para que se ancle al viewport.
+   * The header has backdrop-filter, which creates a containing block for
+   * position: fixed. Move the modal to the body so it anchors to the viewport.
    * @param {HTMLElement} node
    */
   function portal(node) {
@@ -201,7 +201,7 @@
     };
   }
 
-  // Evita que el fondo haga scroll con el sheet abierto.
+  // Prevent the background from scrolling while the sheet is open.
   $: if (typeof document !== 'undefined') {
     document.body.style.overflow = showAdminPanel ? 'hidden' : '';
   }

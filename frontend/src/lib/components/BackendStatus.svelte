@@ -8,9 +8,9 @@
   const SLOW_AFTER_MS = 15000;
   const HIDE_AFTER_MS = 4000;
 
-  // 'down' = no hay respuesta HTTP (servicio dormido o arrancando).
-  // 'degraded' = la API responde pero la base de datos no.
-  // 'up' = API y base de datos correctas.
+  // 'down' = no HTTP response (service asleep or starting).
+  // 'degraded' = the API answers but the database does not.
+  // 'up' = API and database are healthy.
   let status = $state('down');
   let visible = $state(true);
   let slow = $state(false);
@@ -26,14 +26,17 @@
 
   async function check() {
     controller?.abort();
-    controller = new AbortController();
-    const requestTimeout = setTimeout(() => controller?.abort(), TIMEOUT_MS);
+    const requestController = new AbortController();
+    controller = requestController;
+    const requestTimeout = setTimeout(() => requestController.abort(), TIMEOUT_MS);
 
     let nextStatus = 'down';
 
     try {
+      // `no-store` avoids a cached response hiding that the backend is asleep.
       const response = await fetch(`${API_URL}/actuator/health`, {
-        signal: controller.signal,
+        signal: requestController.signal,
+        cache: 'no-store',
         headers: { accept: 'application/json' }
       });
 
@@ -44,7 +47,7 @@
       try {
         payload = JSON.parse(body);
       } catch {
-        // Render devuelve una pagina HTML cuando el servicio no esta vivo.
+        // Render returns an HTML page while the service is not alive.
       }
 
       if (payload?.status === 'UP') {

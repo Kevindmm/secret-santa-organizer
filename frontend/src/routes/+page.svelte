@@ -6,7 +6,7 @@
   import CreateGameForm from '$lib/components/CreateGameForm.svelte';
   import JoinGameForm from '$lib/components/JoinGameForm.svelte';
 
-  let activeTab = 'create';
+  let activeTab = 'join';
 
   /** @param {CustomEvent<{ tab: string }>} event */
   function handleTabChange(event) {
@@ -27,8 +27,8 @@
     </h1>
 
     <p class="hero-lede">
-      Crea el intercambio, comparte el código y deja que el sorteo y los emails
-      se hagan solos. Sin hojas de cálculo, sin líos.
+      Únete con el código que te han pasado o crea tu propio intercambio.
+      El sorteo justo y los emails se hacen solos, sin hojas de cálculo.
     </p>
 
     <ul class="hero-facts" aria-label="Ventajas">

@@ -16,7 +16,7 @@ public class Participant {
     @JoinColumn(name = "game_id")
     private Game game;
 
-    private String assignedToEmail;  // Solo este campo
+    private String assignedToEmail;  // Only this field
     private boolean emailSent = false;
 
     public Participant() {}

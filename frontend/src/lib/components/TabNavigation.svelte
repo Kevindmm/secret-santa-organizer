@@ -4,13 +4,13 @@
   import { Gift, Link2 } from 'lucide-svelte';
 
   // Export current active tab
-  export let activeTab = 'create';
+  export let activeTab = 'join';
 
   const dispatch = createEventDispatcher();
 
   const tabs = [
-    { id: 'create', label: 'Crear intercambio', icon: Gift },
-    { id: 'join', label: 'Unirme', icon: Link2 }
+    { id: 'join', label: 'Unirme', icon: Link2 },
+    { id: 'create', label: 'Crear intercambio', icon: Gift }
   ];
 
   /** @param {string} tabId */

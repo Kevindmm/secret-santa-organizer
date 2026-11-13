@@ -380,7 +380,7 @@
     text-align: center;
   }
 
-  /* Estado de éxito ---------------------------------------- */
+  /* Success state ------------------------------------------ */
 
   .success-card {
     padding: 0.35rem 0;
