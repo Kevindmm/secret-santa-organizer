@@ -8,7 +8,7 @@ There are no user accounts: the game code is the only access. The project is spl
 
 **https://secret-santa-organizer-delta.vercel.app/**
 
-The frontend is hosted on Vercel and the API and database on Render. No sign-up is needed: create a game, share the code and join from another device. The free backend sleeps after 15 minutes idle, so the first request may take up to a minute; the status indicator in the header shows when it is awake.
+The frontend is hosted on Vercel, the API on Render and the database on Supabase. No sign-up is needed: create a game, share the code and join from another device. The free backend sleeps after 15 minutes idle, so the first request may take up to a minute; the status indicator in the header shows when it is awake.
 
 ## Stack
 
@@ -16,7 +16,7 @@ The frontend is hosted on Vercel and the API and database on Render. No sign-up 
 | --- | --- |
 | Frontend | SvelteKit 2, Svelte 5, Vite, native CSS |
 | Backend | Spring Boot 4, Java 25, Maven |
-| Database | PostgreSQL 16 |
+| Database | PostgreSQL 16 (Supabase in the live demo) |
 | Email | Brevo HTTP API |
 | Containers | Docker and Docker Compose |
 
