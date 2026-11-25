@@ -12,8 +12,8 @@ RUN mvn dependency:go-offline -B
 # 🔧 FIX: Copy source from /server/src
 COPY server/src ./src
 
-# Build the application
-RUN mvn clean package -DskipTests -B
+# Build the application (tests are compiled and run in CI, not in the image)
+RUN mvn clean package -Dmaven.test.skip=true -B
 
 # ============================================
 # RUNTIME STAGE - minimal JRE Alpine image
@@ -32,4 +32,18 @@ RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# JVM tuned for a 0.1 CPU / 512 MB container:
+# - SerialGC and a single compiler tier keep CPU and thread overhead low.
+# - The heap stays at 55% to leave room for metaspace, stacks and native memory.
+# - ActiveProcessorCount prevents the JVM from sizing pools for the host CPU.
+ENTRYPOINT ["java", \
+  "-XX:+UseSerialGC", \
+  "-XX:MaxRAMPercentage=55", \
+  "-XX:MaxMetaspaceSize=128m", \
+  "-XX:ReservedCodeCacheSize=64m", \
+  "-XX:ActiveProcessorCount=2", \
+  "-Xss512k", \
+  "-XX:TieredStopAtLevel=1", \
+  "-XX:+ExitOnOutOfMemoryError", \
+  "-jar", "app.jar"]

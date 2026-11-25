@@ -1,6 +1,7 @@
 package com.kdmm.secretsanta.service;
 
 import com.kdmm.secretsanta.dto.AssignmentResult;
+import com.kdmm.secretsanta.dto.GameParticipantCount;
 import com.kdmm.secretsanta.dto.GameRequest;
 import com.kdmm.secretsanta.dto.GameSummaryDTO;
 import com.kdmm.secretsanta.dto.ParticipantDTO;
@@ -27,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 @Service
 public class GameService {
@@ -79,15 +81,14 @@ public class GameService {
         Game game = gameRepo.findById(gameCode)
                 .orElseThrow(() -> new GameNotFoundException(gameCode));
 
-        List<Participant> existing = participantRepo.findByGameId(gameCode);
-        if (existing.size() >= MAX_PARTICIPANTS) {
+        // Count and duplicate check are two cheap queries. Loading every
+        // participant just to inspect the list grows with the game size.
+        long participantCount = participantRepo.countByGameId(gameCode);
+        if (participantCount >= MAX_PARTICIPANTS) {
             throw new ParticipantLimitException(MAX_PARTICIPANTS);
         }
 
-        boolean emailExists = existing.stream()
-                .anyMatch(p -> p.getEmail() != null && p.getEmail().equalsIgnoreCase(email));
-
-        if (emailExists) {
+        if (participantRepo.existsByGameIdAndEmailIgnoreCase(gameCode, email)) {
             throw new DuplicateEmailException(email, gameCode);
         }
 
@@ -239,13 +240,18 @@ public class GameService {
 
     @Transactional(readOnly = true)
     public List<GameSummaryDTO> getAllGames() {
+        Map<String, Long> participantCounts = participantRepo.countGroupedByGame().stream()
+                .collect(Collectors.toMap(
+                        GameParticipantCount::gameId,
+                        GameParticipantCount::total));
+
         return gameRepo.findAll().stream()
                 .map(game -> new GameSummaryDTO(
                         game.getId(),
                         game.getName(),
                         game.getMaxPrice(),
                         game.getExchangeDate(),
-                        (int) participantRepo.countByGameId(game.getId()),
+                        participantCounts.getOrDefault(game.getId(), 0L).intValue(),
                         game.isAssignmentsDone()))
                 .toList();
     }

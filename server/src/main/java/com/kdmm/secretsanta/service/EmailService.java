@@ -24,12 +24,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 
 @Service
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     private static final String BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+    /**
+     * With a 0.1 CPU instance, launching one TLS handshake per participant in
+     * parallel starves the process and spikes memory. A small pool keeps the
+     * draw responsive while still sending several emails at once.
+     */
+    private static final int MAX_CONCURRENT_EMAILS = 4;
     private static final DateTimeFormatter SPANISH_DATE =
             DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", Locale.forLanguageTag("es-ES"));
 
@@ -53,6 +60,11 @@ public class EmailService {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NEVER)
+                .executor(Executors.newFixedThreadPool(MAX_CONCURRENT_EMAILS, runnable -> {
+                    Thread thread = new Thread(runnable, "brevo-http");
+                    thread.setDaemon(true);
+                    return thread;
+                }))
                 .build();
     }
 

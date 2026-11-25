@@ -1,6 +1,7 @@
 package com.kdmm.secretsanta.service;
 
 import com.kdmm.secretsanta.dto.AssignmentResult;
+import com.kdmm.secretsanta.dto.GameParticipantCount;
 import com.kdmm.secretsanta.dto.GameRequest;
 import com.kdmm.secretsanta.dto.GameSummaryDTO;
 import com.kdmm.secretsanta.dto.ParticipantDTO;
@@ -23,7 +24,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -250,8 +250,8 @@ class GameServiceTest {
         Game second = game("BBB22222", true);
 
         when(gameRepo.findAll()).thenReturn(List.of(first, second));
-        when(participantRepo.countByGameId("AAA11111")).thenReturn(4L);
-        when(participantRepo.countByGameId("BBB22222")).thenReturn(0L);
+        when(participantRepo.countGroupedByGame()).thenReturn(List.of(
+                new GameParticipantCount("AAA11111", 4L)));
 
         List<GameSummaryDTO> summaries = gameService.getAllGames();
 
@@ -367,8 +367,9 @@ class GameServiceTest {
     void addParticipant_throwsOnDuplicateEmailIgnoringCase() {
         Game game = game(GAME_ID, false);
         when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
-        when(participantRepo.findByGameId(GAME_ID))
-                .thenReturn(List.of(participant(1L, "Ana@Test.com")));
+        when(participantRepo.countByGameId(GAME_ID)).thenReturn(1L);
+        when(participantRepo.existsByGameIdAndEmailIgnoreCase(GAME_ID, "ana@test.com"))
+                .thenReturn(true);
 
         ParticipantRequest request = new ParticipantRequest(
                 "Ana", "ana@test.com", "Un libro");
@@ -384,7 +385,9 @@ class GameServiceTest {
     void addParticipant_savesParticipantWithGame() {
         Game game = game(GAME_ID, false);
         when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
-        when(participantRepo.findByGameId(GAME_ID)).thenReturn(List.of());
+        when(participantRepo.countByGameId(GAME_ID)).thenReturn(0L);
+        when(participantRepo.existsByGameIdAndEmailIgnoreCase(GAME_ID, "ana@test.com"))
+                .thenReturn(false);
 
         ParticipantRequest request = new ParticipantRequest(
                 "  Ana  ", "  Ana@Test.COM  ", "  Un libro  ");
@@ -393,7 +396,7 @@ class GameServiceTest {
 
         ArgumentCaptor<Participant> captor = ArgumentCaptor.forClass(Participant.class);
         verify(participantRepo).save(captor.capture());
-        verify(participantRepo).findByGameId(GAME_ID);
+        verify(participantRepo).existsByGameIdAndEmailIgnoreCase(GAME_ID, "ana@test.com");
 
         Participant saved = captor.getValue();
         assertEquals("Ana", saved.getName());
@@ -407,13 +410,9 @@ class GameServiceTest {
     @DisplayName("No se pueden añadir más de 100 participantes por juego")
     void addParticipant_throwsWhenGameIsFull() {
         Game game = game(GAME_ID, false);
-        List<Participant> full = new ArrayList<>();
-        for (int i = 0; i < 100; i++) {
-            full.add(participant(i, "p" + i + "@test.com"));
-        }
 
         when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
-        when(participantRepo.findByGameId(GAME_ID)).thenReturn(full);
+        when(participantRepo.countByGameId(GAME_ID)).thenReturn(100L);
 
         ParticipantRequest request = new ParticipantRequest(
                 "Ana", "ana@test.com", "Un libro");
@@ -422,6 +421,7 @@ class GameServiceTest {
                 () -> gameService.addParticipant(GAME_ID, request));
 
         verify(participantRepo, never()).save(any(Participant.class));
+        verify(participantRepo, never()).existsByGameIdAndEmailIgnoreCase(any(), any());
     }
 
     // ---------------------------------------------------------------
