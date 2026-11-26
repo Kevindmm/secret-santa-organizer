@@ -10,10 +10,6 @@ import java.util.List;
 public interface ParticipantRepository extends JpaRepository<Participant, Long> {
     List<Participant> findByGameId(String gameId);
 
-    long countByGameId(String gameId);
-
-    boolean existsByGameIdAndEmailIgnoreCase(String gameId, String email);
-
     /**
      * Counts participants for every game in one query. The game list used to
      * run one count per game, which grows linearly with the number of games.

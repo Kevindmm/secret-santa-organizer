@@ -34,9 +34,11 @@ USER spring:spring
 EXPOSE 8080
 
 # JVM tuned for a 0.1 CPU / 512 MB container:
-# - SerialGC and a single compiler tier keep CPU and thread overhead low.
+# - SerialGC keeps GC threads from competing for the single shared CPU.
 # - The heap stays at 55% to leave room for metaspace, stacks and native memory.
 # - ActiveProcessorCount prevents the JVM from sizing pools for the host CPU.
+# Tiered compilation stays on: a keep-alive cron keeps the service awake, so
+# C2-compiled code pays off for API latency even though it costs warmup CPU.
 ENTRYPOINT ["java", \
   "-XX:+UseSerialGC", \
   "-XX:MaxRAMPercentage=55", \
@@ -44,6 +46,5 @@ ENTRYPOINT ["java", \
   "-XX:ReservedCodeCacheSize=64m", \
   "-XX:ActiveProcessorCount=2", \
   "-Xss512k", \
-  "-XX:TieredStopAtLevel=1", \
   "-XX:+ExitOnOutOfMemoryError", \
   "-jar", "app.jar"]

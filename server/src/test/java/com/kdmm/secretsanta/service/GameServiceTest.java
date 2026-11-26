@@ -1,6 +1,7 @@
 package com.kdmm.secretsanta.service;
 
 import com.kdmm.secretsanta.dto.AssignmentResult;
+import com.kdmm.secretsanta.dto.GameJoinStats;
 import com.kdmm.secretsanta.dto.GameParticipantCount;
 import com.kdmm.secretsanta.dto.GameRequest;
 import com.kdmm.secretsanta.dto.GameSummaryDTO;
@@ -274,8 +275,6 @@ class GameServiceTest {
     @Test
     @DisplayName("getParticipants nunca devuelve el email completo")
     void getParticipants_masksEmailAddresses() {
-        Game game = game(GAME_ID, false);
-        when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
         when(participantRepo.findByGameId(GAME_ID))
                 .thenReturn(List.of(participant(1L, "ana@test.com")));
 
@@ -365,11 +364,8 @@ class GameServiceTest {
     @Test
     @DisplayName("Añadir un email ya registrado lanza DuplicateEmailException")
     void addParticipant_throwsOnDuplicateEmailIgnoringCase() {
-        Game game = game(GAME_ID, false);
-        when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
-        when(participantRepo.countByGameId(GAME_ID)).thenReturn(1L);
-        when(participantRepo.existsByGameIdAndEmailIgnoreCase(GAME_ID, "ana@test.com"))
-                .thenReturn(true);
+        when(gameRepo.findJoinStats(GAME_ID, "ana@test.com"))
+                .thenReturn(Optional.of(new GameJoinStats(GAME_ID, 1, 1)));
 
         ParticipantRequest request = new ParticipantRequest(
                 "Ana", "ana@test.com", "Un libro");
@@ -381,13 +377,27 @@ class GameServiceTest {
     }
 
     @Test
+    @DisplayName("Unirse a un juego inexistente lanza GameNotFoundException")
+    void addParticipant_throwsWhenGameDoesNotExist() {
+        when(gameRepo.findJoinStats(GAME_ID, "ana@test.com"))
+                .thenReturn(Optional.empty());
+
+        ParticipantRequest request = new ParticipantRequest(
+                "Ana", "ana@test.com", "Un libro");
+
+        assertThrows(GameNotFoundException.class,
+                () -> gameService.addParticipant(GAME_ID, request));
+
+        verify(participantRepo, never()).save(any(Participant.class));
+    }
+
+    @Test
     @DisplayName("Añadir un participante normaliza email y espacios, y lo asocia al juego")
     void addParticipant_savesParticipantWithGame() {
         Game game = game(GAME_ID, false);
-        when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
-        when(participantRepo.countByGameId(GAME_ID)).thenReturn(0L);
-        when(participantRepo.existsByGameIdAndEmailIgnoreCase(GAME_ID, "ana@test.com"))
-                .thenReturn(false);
+        when(gameRepo.findJoinStats(GAME_ID, "ana@test.com"))
+                .thenReturn(Optional.of(new GameJoinStats(GAME_ID, 0, 0)));
+        when(gameRepo.getReferenceById(GAME_ID)).thenReturn(game);
 
         ParticipantRequest request = new ParticipantRequest(
                 "  Ana  ", "  Ana@Test.COM  ", "  Un libro  ");
@@ -396,7 +406,7 @@ class GameServiceTest {
 
         ArgumentCaptor<Participant> captor = ArgumentCaptor.forClass(Participant.class);
         verify(participantRepo).save(captor.capture());
-        verify(participantRepo).existsByGameIdAndEmailIgnoreCase(GAME_ID, "ana@test.com");
+        verify(gameRepo).findJoinStats(GAME_ID, "ana@test.com");
 
         Participant saved = captor.getValue();
         assertEquals("Ana", saved.getName());
@@ -409,10 +419,8 @@ class GameServiceTest {
     @Test
     @DisplayName("No se pueden añadir más de 100 participantes por juego")
     void addParticipant_throwsWhenGameIsFull() {
-        Game game = game(GAME_ID, false);
-
-        when(gameRepo.findById(GAME_ID)).thenReturn(Optional.of(game));
-        when(participantRepo.countByGameId(GAME_ID)).thenReturn(100L);
+        when(gameRepo.findJoinStats(GAME_ID, "ana@test.com"))
+                .thenReturn(Optional.of(new GameJoinStats(GAME_ID, 100, 0)));
 
         ParticipantRequest request = new ParticipantRequest(
                 "Ana", "ana@test.com", "Un libro");
@@ -421,7 +429,6 @@ class GameServiceTest {
                 () -> gameService.addParticipant(GAME_ID, request));
 
         verify(participantRepo, never()).save(any(Participant.class));
-        verify(participantRepo, never()).existsByGameIdAndEmailIgnoreCase(any(), any());
     }
 
     // ---------------------------------------------------------------

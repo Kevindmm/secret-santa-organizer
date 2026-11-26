@@ -4,13 +4,12 @@
 
   const TIMEOUT_MS = 15000;
   const DOWN_RETRY_MS = 4000;
-  const DEGRADED_RETRY_MS = 15000;
   const SLOW_AFTER_MS = 15000;
   const HIDE_AFTER_MS = 4000;
 
   // 'down' = no HTTP response (service asleep or starting).
-  // 'degraded' = the API answers but the database does not.
-  // 'up' = API and database are healthy.
+  // 'up' = the process answers. The liveness probe never touches the database,
+  // so the page does not spend a database round trip before it can render.
   let status = $state('down');
   let visible = $state(true);
   let slow = $state(false);
@@ -33,8 +32,10 @@
     let nextStatus = 'down';
 
     try {
+      // Liveness only reports the process state: no database, no extra latency.
+      // The keep-alive cron already checks the full health endpoint.
       // `no-store` avoids a cached response hiding that the backend is asleep.
-      const response = await fetch(`${API_URL}/actuator/health`, {
+      const response = await fetch(`${API_URL}/actuator/health/liveness`, {
         signal: requestController.signal,
         cache: 'no-store',
         headers: { accept: 'application/json' }
@@ -52,8 +53,6 @@
 
       if (payload?.status === 'UP') {
         nextStatus = 'up';
-      } else if (payload) {
-        nextStatus = 'degraded';
       }
     } catch {
       nextStatus = 'down';
@@ -72,7 +71,7 @@
       return;
     }
 
-    retryTimer = setTimeout(check, status === 'degraded' ? DEGRADED_RETRY_MS : DOWN_RETRY_MS);
+    retryTimer = setTimeout(check, DOWN_RETRY_MS);
   }
 
   onMount(() => {
@@ -94,16 +93,13 @@
   <div
     class="status"
     class:is-up={status === 'up'}
-    class:is-degraded={status === 'degraded'}
     role="status"
     aria-live="polite"
   >
     <span class="dot" aria-hidden="true"></span>
     <span class="text">
       {#if status === 'up'}
-        Servidor y base de datos conectados
-      {:else if status === 'degraded'}
-        Servidor conectado, base de datos no disponible
+        Servidor conectado
       {:else if slow}
         El servidor está despertando, puede tardar un minuto
       {:else}
@@ -143,12 +139,6 @@
     background: var(--danger);
     box-shadow: 0 0 0 3px rgba(240, 122, 116, 0.16);
     animation: pulse 1.8s ease-in-out infinite;
-  }
-
-  .is-degraded .dot {
-    background: var(--gold);
-    box-shadow: 0 0 0 3px var(--gold-soft);
-    animation: none;
   }
 
   .is-up .dot {

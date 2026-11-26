@@ -1,6 +1,7 @@
 package com.kdmm.secretsanta.service;
 
 import com.kdmm.secretsanta.dto.AssignmentResult;
+import com.kdmm.secretsanta.dto.GameJoinStats;
 import com.kdmm.secretsanta.dto.GameParticipantCount;
 import com.kdmm.secretsanta.dto.GameRequest;
 import com.kdmm.secretsanta.dto.GameSummaryDTO;
@@ -78,17 +79,17 @@ public class GameService {
         String email = normalizeEmail(request.email());
         log.info("Adding participant {} to game {}", EmailMasker.mask(email), gameCode);
 
-        Game game = gameRepo.findById(gameCode)
+        // One query resolves the game, the participant total and a duplicate
+        // email. Every extra round trip to Supabase adds latency on the free
+        // tier, so the checks are combined.
+        GameJoinStats stats = gameRepo.findJoinStats(gameCode, email)
                 .orElseThrow(() -> new GameNotFoundException(gameCode));
 
-        // Count and duplicate check are two cheap queries. Loading every
-        // participant just to inspect the list grows with the game size.
-        long participantCount = participantRepo.countByGameId(gameCode);
-        if (participantCount >= MAX_PARTICIPANTS) {
+        if (stats.total() >= MAX_PARTICIPANTS) {
             throw new ParticipantLimitException(MAX_PARTICIPANTS);
         }
 
-        if (participantRepo.existsByGameIdAndEmailIgnoreCase(gameCode, email)) {
+        if (stats.emailMatches() > 0) {
             throw new DuplicateEmailException(email, gameCode);
         }
 
@@ -96,7 +97,8 @@ public class GameService {
         participant.setName(request.name().trim());
         participant.setEmail(email);
         participant.setWishList(normalizeWishList(request.wishList()));
-        participant.setGame(game);
+        // A reference avoids loading the game a second time.
+        participant.setGame(gameRepo.getReferenceById(gameCode));
         participant.setEmailSent(false);
 
         participantRepo.save(participant);
@@ -285,10 +287,13 @@ public class GameService {
     public List<ParticipantDTO> getParticipants(String gameCode) {
         String normalizedCode = normalizeGameCode(gameCode);
 
-        gameRepo.findById(normalizedCode)
-                .orElseThrow(() -> new GameNotFoundException(gameCode));
-
         List<Participant> participants = participantRepo.findByGameId(normalizedCode);
+
+        // A non-empty list already proves the game exists. The extra lookup is
+        // only needed to tell an empty game from a missing one.
+        if (participants.isEmpty() && !gameRepo.existsById(normalizedCode)) {
+            throw new GameNotFoundException(gameCode);
+        }
 
         return participants.stream()
                 .map(p -> new ParticipantDTO(
